@@ -6,8 +6,20 @@ __pycache__/
 .env.*
 
 .pytest_cache/
+.pytest_tmp/
+.pytest_local_tmp/
 .ruff_cache/
 .mypy_cache/
+.idea/
+
+storage/documents/*
+storage/normalized/*
+storage/indexes/*
+storage/traces/*
+!storage/documents/.gitkeep
+!storage/normalized/.gitkeep
+!storage/indexes/.gitkeep
+!storage/traces/.gitkeep
 
 dist/
 build/
