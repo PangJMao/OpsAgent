@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 
 def utc_now_iso() -> str:
@@ -15,6 +15,13 @@ class Document:
     title: str
     source_path: str
     content: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class NormalizedDocument:
+    title: str
+    markdown: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -53,3 +60,42 @@ class RagAnswer:
     citations: list[Citation]
     confidence: float
     refused: bool
+
+
+RouteType = Literal["knowledge_qa", "tool_call", "hybrid"]
+RiskLevel = Literal["low", "medium", "high"]
+
+
+@dataclass(frozen=True)
+class AgentReview:
+    passed: bool
+    risk_level: RiskLevel
+    issues: list[str] = field(default_factory=list)
+    final_answer: str = ""
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    tool: str
+    args: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ToolResult:
+    tool: str
+    ok: bool
+    result: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class AgentAnswer:
+    trace_id: str
+    question: str
+    route: RouteType
+    answer: str
+    citations: list[Citation]
+    confidence: float
+    refused: bool
+    tool_results: list[ToolResult] = field(default_factory=list)
+    review: AgentReview | None = None

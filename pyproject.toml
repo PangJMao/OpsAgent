@@ -7,11 +7,13 @@ name = "ops-agent"
 version = "0.1.0"
 description = "企业知识库与业务执行 Agent。"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.8.0",
+    "pypdf>=5.0.0",
+    "xlrd>=2.0.1",
 ]
 
 [project.optional-dependencies]
@@ -20,12 +22,12 @@ dev = [
     "ruff>=0.6.0",
 ]
 
-[project.scripts]
-ops-agent = "ops_agent.cli:main"
-
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+ops_agent = ["prompts/templates/*.md", "resources/*.md"]
+
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"

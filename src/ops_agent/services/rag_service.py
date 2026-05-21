@@ -3,20 +3,20 @@ from __future__ import annotations
 from dataclasses import asdict
 from pathlib import Path
 
-from ops_agent.core.config import settings
-from ops_agent.ingestion.chunker import chunk_document
-from ops_agent.ingestion.loaders import (
+from ops_agent.config import settings
+from ops_agent.models import Chunk, Citation, RagAnswer, RetrievalHit
+from ops_agent.services.document_service import (
+    chunk_document,
     load_text_document,
     persist_normalized_markdown,
     persist_source_document,
 )
-from ops_agent.observability import TraceRecorder
-from ops_agent.retrieval import LocalVectorStore
-from ops_agent.schemas import Chunk, Citation, RagAnswer, RetrievalHit
+from ops_agent.services.trace_service import TraceRecorder
+from ops_agent.services.vector_store import LocalVectorStore
 
 
-class RagPipeline:
-    """第一阶段 RAG 应用服务。"""
+class RagService:
+    """RAG application service: ingest documents and answer with citations."""
 
     def __init__(
         self,
@@ -41,21 +41,11 @@ class RagPipeline:
         with self.recorder.span("document.persist", {"document_id": document.document_id}) as span:
             stored_path = persist_source_document(path, document.document_id)
             normalized_path = persist_normalized_markdown(document)
-            span.update(
-                {
-                    "stored_path": str(stored_path),
-                    "normalized_path": str(normalized_path),
-                }
-            )
+            span.update({"stored_path": str(stored_path), "normalized_path": str(normalized_path)})
 
         with self.recorder.span("document.chunk", {"document_id": document.document_id}) as span:
             chunks = chunk_document(document)
-            span.update(
-                {
-                    "chunk_count": len(chunks),
-                    "strategy_counts": _strategy_counts(chunks),
-                }
-            )
+            span.update({"chunk_count": len(chunks), "strategy_counts": _strategy_counts(chunks)})
 
         with self.recorder.span("vector_store.upsert", {"chunk_count": len(chunks)}) as span:
             self.vector_store.upsert_chunks(chunks)
@@ -89,8 +79,7 @@ class RagPipeline:
                 }
             )
 
-        # 置信度门控是第一道反幻觉控制。
-        # 当证据不足时系统直接拒答，避免用模型先验补全企业内部事实。
+        # 置信度门控是第一道反幻觉控制：证据不足时直接拒答。
         best_score = hits[0].score if hits else 0.0
         if best_score < settings.min_relevance_score:
             answer = RagAnswer(
@@ -175,7 +164,7 @@ def _format_user_visible_sources(citations: list[Citation]) -> str:
         heading = " > ".join(citation.heading_path) if citation.heading_path else "未标注章节"
         lines.append(
             f"{index}. 文档：{citation.title}；章节：{heading}；"
-            f"片段：{citation.chunk_id}；相关度：{citation.score:.4f}"
+            f"片段：{citation.chunk_id}；相似度：{citation.score:.4f}"
         )
     return "\n".join(lines)
 

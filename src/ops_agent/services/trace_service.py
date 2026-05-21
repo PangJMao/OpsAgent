@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
-from ops_agent.core.config import settings
-from ops_agent.schemas.rag import utc_now_iso
+from ops_agent.config import settings
+from ops_agent.models import utc_now_iso
 
 
 @dataclass

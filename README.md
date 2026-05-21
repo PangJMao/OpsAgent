@@ -102,6 +102,127 @@ Agent 层
 └── OpenTelemetry/结构化日志：追踪每次 Agent 执行
 ```
 
+系统结构按如下编排
+
+### 4.1 app/main.py
+
+`main.py` 是 FastAPI 应用入口。
+
+主要职责：
+
+- 创建 FastAPI 应用实例
+- 注册 HTTP 路由
+- 配置中间件
+- 配置异常处理
+- 作为服务启动入口
+
+### 4.2 app/api/routes/
+
+`api/routes` 是 HTTP 路由层，也可以理解为 Controller 层。
+
+主要职责：
+
+- 定义接口路径
+- 接收外部 HTTP 请求
+- 调用 Pydantic 模型校验参数
+- 调用 service 层完成业务处理
+- 返回 HTTP 响应
+
+设计原则：
+
+- 路由层要薄
+- 不写复杂业务逻辑
+- 不直接拼 Prompt
+- 不直接处理 Agent 编排
+
+### 4.3 app/models/
+
+`models` 目录存放 Pydantic 请求和响应 DTO。
+
+主要职责：
+
+- 定义请求参数结构
+- 定义响应结果结构
+- 做字段类型校验
+- 约束前后端数据契约
+- 自动生成 OpenAPI 文档
+
+常见模型：
+
+- `ChatRequest`
+- `ChatResponse`
+- `AgentRequest`
+- `AgentResponse`
+- `QueryRequest`
+- `QueryResponse`
+
+### 4.4 app/services/
+
+`services` 是业务逻辑和 Agent 编排层，是整个项目的核心。
+
+主要职责：
+
+- 处理业务流程
+- 组织 Agent 执行逻辑
+- 加载 Prompt 模板
+- 读取静态业务资源
+- 调用大模型
+- 调用工具或外部服务
+- 解析模型返回结果
+- 处理异常和兜底逻辑
+
+### 4.5 app/prompts/
+
+`prompts` 目录用于管理 Prompt 模板。
+
+主要职责：
+
+- 存放系统提示词
+- 存放任务提示词
+- 存放 Agent 角色设定
+- 存放工具使用说明
+- 将 Prompt 与业务代码解耦
+
+为什么要单独拆出来：
+
+- Prompt 经常迭代
+- 方便维护和版本管理
+- 避免长提示词硬编码在代码中
+- 方便不同任务使用不同模板
+
+### 4.6 app/config/settings.py
+
+`settings.py` 用于统一管理环境变量和运行配置。
+
+主要职责：
+
+- 读取 `.env` 或系统环境变量
+- 管理 API Key
+- 管理模型名称
+- 管理服务配置
+- 管理超时时间、日志级别等参数
+
+常见配置：
+
+- `OPENAI_API_KEY`
+- `MODEL_NAME`
+- `DATABASE_URL`
+- `ENV`
+- `TIMEOUT`
+- `LOG_LEVEL`
+
+### 4.7 app/resources/
+
+`resources` 存放静态业务资源。
+
+主要职责：
+
+- 存放表目录 JSON
+- 存放字段说明
+- 存放业务元数据
+- 存放静态配置或规则
+- 为 Agent 提供领域知识上下文
+
 ## 5. Agent 工作流设计
 
 核心原则：把 Agent 做成可控状态机，不做成完全自由发挥的聊天链路。
@@ -279,6 +400,8 @@ Review 失败 -> 返回保守答案
 每次调整 prompt、切分策略、检索参数或模型后，都运行评测集，避免凭感觉优化。
 
 ## 11. MVP 迭代路线
+
+关键步骤附上注释，注释要求中文
 
 第 1 阶段：基础 RAG
 

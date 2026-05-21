@@ -4,13 +4,16 @@ __pycache__/
 
 .env
 .env.*
+!.env.example
 
 .pytest_cache/
 .pytest_tmp/
 .pytest_local_tmp/
+.pytest_run_tmp/
 .ruff_cache/
 .mypy_cache/
 .idea/
+素材/
 
 storage/documents/*
 storage/normalized/*

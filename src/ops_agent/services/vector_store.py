@@ -1,16 +1,52 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import math
+import re
 import sqlite3
 from pathlib import Path
 
-from ops_agent.core.config import settings
-from ops_agent.retrieval.embeddings import HashingEmbeddingModel, cosine_similarity
-from ops_agent.schemas import Chunk, RetrievalHit
+from ops_agent.config import settings
+from ops_agent.models import Chunk, RetrievalHit
+
+TOKEN_RE = re.compile(r"[\w\u4e00-\u9fff]+", re.UNICODE)
+
+
+class HashingEmbeddingModel:
+    """确定性的本地 embedding 基线实现。"""
+
+    def __init__(self, dimensions: int = settings.embedding_dimensions) -> None:
+        self.dimensions = dimensions
+
+    def embed(self, text: str) -> list[float]:
+        vector = [0.0] * self.dimensions
+        for token in self._tokens(text):
+            digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+            bucket = int.from_bytes(digest[:4], "big") % self.dimensions
+            sign = 1.0 if digest[4] % 2 == 0 else -1.0
+            vector[bucket] += sign
+
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm == 0:
+            return vector
+        return [value / norm for value in vector]
+
+    def _tokens(self, text: str) -> list[str]:
+        tokens = [token.lower() for token in TOKEN_RE.findall(text)]
+        cjk_chars = [char for char in text if "\u4e00" <= char <= "\u9fff"]
+        tokens.extend(a + b for a, b in zip(cjk_chars, cjk_chars[1:]))
+        return tokens
+
+
+def cosine_similarity(left: list[float], right: list[float]) -> float:
+    if not left or not right or len(left) != len(right):
+        return 0.0
+    return sum(a * b for a, b in zip(left, right))
 
 
 class LocalVectorStore:
-    """切换到 pgvector 前使用的 SQLite 本地向量存储方案。"""
+    """SQLite 本地向量存储，后续可替换为 pgvector 实现。"""
 
     def __init__(
         self,
@@ -27,7 +63,7 @@ class LocalVectorStore:
         if not chunks:
             return
 
-        # 同一文档重新入库时先清理旧 chunk，避免切分策略变更后新旧片段同时被检索到。
+        # 同一文档重新入库时先清理旧 chunk，避免新旧切分结果同时被检索。
         document_ids = sorted({chunk.document_id for chunk in chunks})
         rows = [
             (
@@ -43,10 +79,7 @@ class LocalVectorStore:
             for chunk in chunks
         ]
         with self._connect() as connection:
-            connection.executemany(
-                "DELETE FROM chunks WHERE document_id = ?",
-                [(document_id,) for document_id in document_ids],
-            )
+            connection.executemany("DELETE FROM chunks WHERE document_id = ?", [(document_id,) for document_id in document_ids])
             connection.executemany(
                 """
                 INSERT INTO chunks (
@@ -75,19 +108,10 @@ class LocalVectorStore:
     def search(self, query: str, top_k: int = settings.top_k) -> list[RetrievalHit]:
         query_embedding = self.embedding_model.embed(query)
         hits: list[RetrievalHit] = []
-
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT
-                    chunk_id,
-                    document_id,
-                    title,
-                    text,
-                    start_char,
-                    end_char,
-                    metadata_json,
-                    embedding_json
+                SELECT chunk_id, document_id, title, text, start_char, end_char, metadata_json, embedding_json
                 FROM chunks
                 """
             ).fetchall()
