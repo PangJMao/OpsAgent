@@ -3,80 +3,153 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OpsAgent Console</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <meta name="theme-color" content="#212121" />
+    <title>OpsAgent</title>
+    <link rel="stylesheet" href="/static/styles.css?v=20260523-chatgpt1" />
   </head>
   <body>
     <main class="app-shell">
-      <section id="login-view" class="login-panel">
-        <div>
-          <p class="eyebrow">OpsAgent</p>
-          <h1>企业知识库工作台</h1>
+      <section id="login-view" class="auth-screen">
+        <div class="auth-card">
+          <div class="brand-mark">OA</div>
+          <div class="auth-copy">
+            <p class="eyebrow">OpsAgent</p>
+            <h1>企业知识库工作台</h1>
+            <p>面向团队知识问答、文档入库与权限治理的 AI Agent 工作台。</p>
+          </div>
+          <form id="login-form" class="auth-form">
+            <label>
+              <span>账号</span>
+              <input id="login-username" autocomplete="username" required />
+            </label>
+            <label>
+              <span>密码</span>
+              <input id="login-password" type="password" autocomplete="current-password" required />
+            </label>
+            <button class="primary-action" type="submit">登录</button>
+            <p id="login-error" class="form-message"></p>
+          </form>
         </div>
-        <form id="login-form" class="form-stack">
-          <label>
-            账号
-            <input id="login-username" autocomplete="username" required />
-          </label>
-          <label>
-            密码
-            <input id="login-password" type="password" autocomplete="current-password" required />
-          </label>
-          <button type="submit">登录</button>
-          <p id="login-error" class="error"></p>
-        </form>
       </section>
 
       <section id="workspace-view" class="workspace hidden">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">OpsAgent</p>
-            <h1>知识库对话</h1>
+        <aside id="sidebar" class="sidebar">
+          <div class="sidebar-top">
+            <button id="sidebar-toggle" class="icon-button" type="button" title="收起侧边栏">☰</button>
+            <button id="new-conversation" class="new-chat-button" type="button">
+              <span class="nav-icon">＋</span>
+              <span class="sidebar-text">新对话</span>
+            </button>
           </div>
-          <div class="identity">
-            <span id="current-user"></span>
-            <button id="logout-button" class="secondary">退出</button>
-          </div>
-        </header>
 
-        <div class="layout">
-          <section class="panel chat-panel">
-            <div id="messages" class="messages"></div>
-            <form id="chat-form" class="chat-input">
-              <textarea id="question" rows="3" placeholder="输入业务问题，回答会保留引用来源"></textarea>
-              <button type="submit">发送</button>
+          <nav class="nav-stack" aria-label="主导航">
+            <button class="nav-item active" data-view="chat-view" type="button">
+              <span class="nav-icon">⌘</span>
+              <span class="sidebar-text">AI 对话</span>
+            </button>
+            <button id="nav-users" class="nav-item hidden" data-view="users-view" type="button">
+              <span class="nav-icon">◎</span>
+              <span class="sidebar-text">用户管理</span>
+            </button>
+            <button id="nav-knowledge" class="nav-item hidden" data-view="knowledge-view" type="button">
+              <span class="nav-icon">◇</span>
+              <span class="sidebar-text">知识管理</span>
+            </button>
+          </nav>
+
+          <div class="conversation-section">
+            <p class="sidebar-label sidebar-text">历史对话</p>
+            <div id="conversation-list" class="conversation-list"></div>
+          </div>
+
+          <div class="account-card">
+            <div class="account-avatar">OA</div>
+            <div class="account-meta sidebar-text">
+              <strong id="current-user">-</strong>
+              <span>已登录</span>
+            </div>
+            <button id="logout-button" class="icon-button logout-icon" type="button" title="退出">↩</button>
+          </div>
+        </aside>
+
+        <section class="main-surface">
+          <header class="topbar">
+            <button id="main-sidebar-toggle" class="icon-button mobile-menu" type="button" title="侧边栏">☰</button>
+            <div class="model-title">
+              <span id="view-title">OpsAgent</span>
+              <small id="view-eyebrow">Knowledge RAG</small>
+            </div>
+            <div class="topbar-actions">
+              <button id="theme-toggle" class="toolbar-button" type="button">浅色</button>
+              <div id="runtime-status" class="runtime-pill">System ready</div>
+            </div>
+          </header>
+
+          <section id="chat-view" class="view-panel chat-view">
+            <div id="messages" class="messages">
+              <div class="empty-state">
+                <div class="empty-logo">OA</div>
+                <h3>今天需要查询什么？</h3>
+                <p>面向企业制度、客户流程、内部知识和文档依据进行问答。</p>
+              </div>
+            </div>
+            <form id="chat-form" class="composer">
+              <textarea id="question" rows="1" placeholder="给 OpsAgent 发送消息"></textarea>
+              <button id="send-button" class="send-button" type="submit" title="发送">↑</button>
             </form>
           </section>
 
-          <aside id="admin-panel" class="panel admin-panel hidden">
-            <h2>管理员控制台</h2>
-
-            <section class="admin-section">
-              <h3>用户管理</h3>
-              <form id="user-form" class="form-grid">
-                <input id="new-username" placeholder="新用户名" required />
+          <section id="users-view" class="view-panel admin-grid hidden">
+            <div class="section-card">
+              <div class="section-heading">
+                <p class="eyebrow">Access Control</p>
+                <h3>创建用户</h3>
+              </div>
+              <form id="user-form" class="stack-form">
+                <input id="new-username" placeholder="用户名" required />
                 <input id="new-password" type="password" placeholder="初始密码" required />
                 <select id="new-role">
                   <option value="user">普通用户</option>
                   <option value="admin">管理员</option>
                 </select>
-                <button type="submit">添加用户</button>
+                <button class="primary-action" type="submit">添加用户</button>
               </form>
+            </div>
+            <div class="section-card wide">
+              <div class="section-heading">
+                <p class="eyebrow">Directory</p>
+                <h3>用户列表</h3>
+              </div>
               <div id="users" class="user-list"></div>
-            </section>
+            </div>
+          </section>
 
-            <section class="admin-section">
-              <h3>知识文档</h3>
-              <form id="document-form" class="form-stack">
-                <input id="document-file" type="file" accept=".md,.txt,.pdf,.docx,.xlsx,.xls" />
-                <button type="submit">上传并入库</button>
+          <section id="knowledge-view" class="view-panel admin-grid hidden">
+            <div class="section-card">
+              <div class="section-heading">
+                <p class="eyebrow">Vector Knowledge</p>
+                <h3>文档入库</h3>
+              </div>
+              <form id="document-form" class="stack-form">
+                <label class="file-drop">
+                  <input id="document-file" type="file" multiple accept=".md,.txt,.pdf,.docx,.xlsx,.xls" />
+                  <span>选择多个文档</span>
+                  <small>支持 md、txt、pdf、docx、xlsx、xls</small>
+                </label>
+                <button class="primary-action" type="submit">逐个上传并入库</button>
               </form>
-              <p id="document-status" class="muted"></p>
-            </section>
-          </aside>
-        </div>
+            </div>
+            <div class="section-card wide">
+              <div class="section-heading">
+                <p class="eyebrow">Pipeline</p>
+                <h3>入库状态</h3>
+              </div>
+              <div id="document-status" class="upload-list"></div>
+            </div>
+          </section>
+        </section>
       </section>
     </main>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20260523-chatgpt1"></script>
   </body>
 </html>

@@ -29,7 +29,6 @@ class UserService:
 
     def __init__(self) -> None:
         self._users: dict[str, UserRecord] = {}
-        self.database = DatabaseService()
         if not settings.require_external_services:
             self._ensure_root_user()
 
@@ -57,7 +56,7 @@ class UserService:
             created_at=utc_now_iso(),
         )
         if settings.require_external_services:
-            with self.database.connect() as connection:
+            with DatabaseService().connect() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
                         """
@@ -78,7 +77,7 @@ class UserService:
                 raise KeyError(user_id)
             if user.role == "root":
                 raise ValueError("Root user cannot be deleted.")
-            with self.database.connect() as connection:
+            with DatabaseService().connect() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
                 connection.commit()
@@ -99,7 +98,7 @@ class UserService:
                 raise KeyError(user_id)
             if user.role == "root":
                 raise ValueError("Root user role cannot be changed.")
-            with self.database.connect() as connection:
+            with DatabaseService().connect() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute("UPDATE users SET role = %s WHERE user_id = %s", (role, user_id))
                 connection.commit()
@@ -117,7 +116,7 @@ class UserService:
 
     def list_users(self) -> list[UserRecord]:
         if settings.require_external_services:
-            with self.database.connect() as connection:
+            with DatabaseService().connect() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
                         """
@@ -132,7 +131,7 @@ class UserService:
     def get_by_username(self, username: str) -> UserRecord | None:
         normalized = username.strip()
         if settings.require_external_services:
-            with self.database.connect() as connection:
+            with DatabaseService().connect() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
                         """
@@ -148,7 +147,7 @@ class UserService:
 
     def get(self, user_id: str) -> UserRecord | None:
         if settings.require_external_services:
-            with self.database.connect() as connection:
+            with DatabaseService().connect() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
                         """
@@ -175,7 +174,7 @@ class UserService:
                 role="root",
                 created_at=utc_now_iso(),
             )
-            with self.database.connect() as connection:
+            with DatabaseService().connect() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
                         """

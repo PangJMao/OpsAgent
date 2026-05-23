@@ -1,43 +1,13 @@
 from __future__ import annotations
 
-import hashlib
 import json
-import math
-import re
 import sqlite3
 from pathlib import Path
 
 from ops_agent.config import settings
 from ops_agent.models import Chunk, RetrievalHit
 from ops_agent.services.database_service import DatabaseService
-
-TOKEN_RE = re.compile(r"[\w\u4e00-\u9fff]+", re.UNICODE)
-
-
-class HashingEmbeddingModel:
-    """确定性的本地 embedding 基线实现。"""
-
-    def __init__(self, dimensions: int = settings.embedding_dimensions) -> None:
-        self.dimensions = dimensions
-
-    def embed(self, text: str) -> list[float]:
-        vector = [0.0] * self.dimensions
-        for token in self._tokens(text):
-            digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
-            bucket = int.from_bytes(digest[:4], "big") % self.dimensions
-            sign = 1.0 if digest[4] % 2 == 0 else -1.0
-            vector[bucket] += sign
-
-        norm = math.sqrt(sum(value * value for value in vector))
-        if norm == 0:
-            return vector
-        return [value / norm for value in vector]
-
-    def _tokens(self, text: str) -> list[str]:
-        tokens = [token.lower() for token in TOKEN_RE.findall(text)]
-        cjk_chars = [char for char in text if "\u4e00" <= char <= "\u9fff"]
-        tokens.extend(a + b for a, b in zip(cjk_chars, cjk_chars[1:]))
-        return tokens
+from ops_agent.services.embedding_service import EmbeddingModel, create_embedding_model
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:
@@ -52,10 +22,10 @@ class LocalVectorStore:
     def __init__(
         self,
         index_file: Path = settings.vector_store_path,
-        embedding_model: HashingEmbeddingModel | None = None,
+        embedding_model: EmbeddingModel | None = None,
     ) -> None:
         self.index_file = index_file
-        self.embedding_model = embedding_model or HashingEmbeddingModel()
+        self.embedding_model = embedding_model or create_embedding_model()
         self.index_file.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
         self._migrate_legacy_json_if_needed()
@@ -212,8 +182,8 @@ class LocalVectorStore:
 class PgVectorStore:
     """PostgreSQL + pgvector implementation for production knowledge retrieval."""
 
-    def __init__(self, embedding_model: HashingEmbeddingModel | None = None) -> None:
-        self.embedding_model = embedding_model or HashingEmbeddingModel()
+    def __init__(self, embedding_model: EmbeddingModel | None = None) -> None:
+        self.embedding_model = embedding_model or create_embedding_model()
         self.database = DatabaseService()
 
     def upsert_chunks(self, chunks: list[Chunk]) -> None:

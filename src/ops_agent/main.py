@@ -12,6 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from ops_agent.api.routes import (
     agent_router,
     auth_router,
+    conversations_router,
     evaluation_router,
     health_router,
     rag_router,
@@ -46,8 +47,19 @@ def create_app() -> FastAPI:
         same_site="lax",
         https_only=False,
     )
+
+    @app.middleware("http")
+    async def prevent_frontend_cache(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path == "/" or request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(conversations_router)
     app.include_router(users_router)
     app.include_router(rag_router)
     app.include_router(agent_router)

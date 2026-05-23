@@ -1,6 +1,8 @@
 from ops_agent.models.api import (
     AgentRunRequest,
     AskRequest,
+    ConversationAskRequest,
+    ConversationCreateRequest,
     CreateUserRequest,
     EvaluationCaseRequest,
     EvaluationRunRequest,
@@ -29,6 +31,8 @@ __all__ = [
     "AskRequest",
     "Chunk",
     "Citation",
+    "ConversationAskRequest",
+    "ConversationCreateRequest",
     "CreateUserRequest",
     "Document",
     "EvaluationCaseRequest",

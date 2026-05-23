@@ -24,8 +24,8 @@ class DatabaseStatus:
 class DatabaseService:
     """PostgreSQL initialization for users and pgvector-backed knowledge chunks."""
 
-    def __init__(self, database_url: str = settings.database_url) -> None:
-        self.database_url = database_url
+    def __init__(self, database_url: str | None = None) -> None:
+        self.database_url = settings.database_url if database_url is None else database_url
         self.connect_timeout_seconds = 1
 
     def validate_startup(self) -> DatabaseStatus:
@@ -103,7 +103,7 @@ class DatabaseService:
                     """
                 )
                 cursor.execute(
-                    """
+                    f"""
                     CREATE TABLE IF NOT EXISTS knowledge_chunks (
                         chunk_id TEXT PRIMARY KEY,
                         document_id TEXT NOT NULL,
@@ -112,12 +112,42 @@ class DatabaseService:
                         start_char INTEGER NOT NULL,
                         end_char INTEGER NOT NULL,
                         metadata_json JSONB NOT NULL,
-                        embedding vector(256) NOT NULL,
+                        embedding vector({settings.embedding_dimensions}) NOT NULL,
                         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
                     )
                     """
                 )
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_document ON knowledge_chunks(document_id)")
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        conversation_id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                        title TEXT NOT NULL,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS conversation_messages (
+                        message_id TEXT PRIMARY KEY,
+                        conversation_id TEXT NOT NULL REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+                        user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                        role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+                        content TEXT NOT NULL,
+                        citations_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    )
+                    """
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id, updated_at DESC)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id, created_at)"
+                )
                 from ops_agent.services.auth_service import hash_password
 
                 cursor.execute(

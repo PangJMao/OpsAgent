@@ -36,6 +36,29 @@ class TraceRecorder:
     def set_context(self, **context: Any) -> None:
         self.context.update({key: value for key, value in context.items() if value is not None})
 
+    def record(self, node: str, input_summary: dict[str, Any] | None = None, output_summary: dict[str, Any] | None = None) -> None:
+        self.events.append(
+            TraceEvent(
+                node=node,
+                started_at=utc_now_iso(),
+                duration_ms=0,
+                input_summary=input_summary or {},
+                output_summary=output_summary or {},
+            )
+        )
+
+    def record_llm_prompt(self, node: str, messages: list[dict[str, Any]] | list[Any]) -> None:
+        self.record(node, output_summary={"messages": messages})
+
+    def record_llm_raw_output(self, node: str, raw_output: str) -> None:
+        self.record(node, output_summary={"raw_output": raw_output})
+
+    def record_parse_failure(self, node: str, raw_output: str, reason: str) -> None:
+        self.record(node, output_summary={"raw_output": raw_output, "parse_failure": reason})
+
+    def record_tool_io(self, tool: str, tool_input: dict[str, Any], observation: dict[str, Any]) -> None:
+        self.record(f"tool.{tool}", input_summary={"tool_input": tool_input}, output_summary={"observation": observation})
+
     @contextmanager
     def span(self, node: str, input_summary: dict[str, Any] | None = None) -> Iterator[dict[str, Any]]:
         started_at = utc_now_iso()

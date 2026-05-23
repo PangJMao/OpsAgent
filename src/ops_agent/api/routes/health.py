@@ -26,5 +26,9 @@ def health() -> dict[str, object]:
         "llm_provider": settings.llm_provider,
         "llm_configured": bool(settings.deepseek_api_key),
         "top_k": settings.top_k,
+        "rerank_provider": settings.rerank_provider,
+        "rerank_model": settings.rerank_model,
+        "retrieval_top_k": settings.retrieval_top_k,
+        "rerank_top_k": settings.rerank_top_k,
         "min_relevance_score": settings.min_relevance_score,
     }

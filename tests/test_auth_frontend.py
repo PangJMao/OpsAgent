@@ -67,6 +67,45 @@ def test_common_user_cannot_access_user_admin() -> None:
         _restore_settings(original)
 
 
+def test_admin_can_only_manage_lower_privilege_users() -> None:
+    original = _use_memory_users()
+    try:
+        root_client = TestClient(create_app())
+        root_client.post("/auth/login", json={"username": "root", "password": "root"})
+        admin = root_client.post(
+            "/users",
+            json={"username": "manager", "password": "password123", "role": "admin"},
+        ).json()["user"]
+        peer = root_client.post(
+            "/users",
+            json={"username": "peer", "password": "password123", "role": "admin"},
+        ).json()["user"]
+
+        admin_client = TestClient(create_app())
+        assert (
+            admin_client.post("/auth/login", json={"username": "manager", "password": "password123"}).status_code
+            == 200
+        )
+
+        created_user = admin_client.post(
+            "/users",
+            json={"username": "operator", "password": "password123", "role": "user"},
+        )
+        created_admin = admin_client.post(
+            "/users",
+            json={"username": "new-admin", "password": "password123", "role": "admin"},
+        )
+        delete_peer = admin_client.delete(f"/users/{peer['user_id']}")
+        delete_self = admin_client.delete(f"/users/{admin['user_id']}")
+
+        assert created_user.status_code == 200
+        assert created_admin.status_code == 403
+        assert delete_peer.status_code == 403
+        assert delete_self.status_code == 403
+    finally:
+        _restore_settings(original)
+
+
 def test_frontend_index_is_served() -> None:
     original = _use_memory_users()
     try:

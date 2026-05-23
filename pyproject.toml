@@ -32,3 +32,4 @@ ops_agent = ["prompts/templates/*.md", "resources/*.md"]
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+extend-exclude = ["src/ops_agent/web"]

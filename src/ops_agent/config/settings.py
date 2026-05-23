@@ -52,8 +52,19 @@ class Settings:
     chunk_size: int = 700
     chunk_overlap: int = 120
     embedding_dimensions: int = 256
+    embedding_provider: str = _env("OPS_AGENT_EMBEDDING_PROVIDER", "hashing")
+    embedding_api_key: str = _env("OPS_AGENT_EMBEDDING_API_KEY", _env("OPENAI_API_KEY", ""))
+    embedding_base_url: str = _env("OPS_AGENT_EMBEDDING_BASE_URL", "https://api.openai.com/v1")
+    embedding_model: str = _env("OPS_AGENT_EMBEDDING_MODEL", "text-embedding-3-small")
+    embedding_timeout_seconds: float = float(_env("OPS_AGENT_EMBEDDING_TIMEOUT_SECONDS", "20"))
     min_relevance_score: float = 0.08
     top_k: int = 4
+    rerank_provider: str = _env("OPS_AGENT_RERANK_PROVIDER", "bge")
+    rerank_model: str = _env("OPS_AGENT_RERANK_MODEL", "BAAI/bge-reranker-base")
+    rerank_use_fp16: bool = _env("OPS_AGENT_RERANK_USE_FP16", "true").lower() == "true"
+    rerank_require_model: bool = _env("OPS_AGENT_RERANK_REQUIRE_MODEL", "false").lower() == "true"
+    retrieval_top_k: int = int(_env("OPS_AGENT_RETRIEVAL_TOP_K", "12"))
+    rerank_top_k: int = int(_env("OPS_AGENT_RERANK_TOP_K", "3"))
     llm_provider: str = _env("OPS_AGENT_LLM_PROVIDER", "deepseek")
     deepseek_api_key: str = _env("DEEPSEEK_API_KEY", "")
     deepseek_base_url: str = _env("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
@@ -69,6 +80,10 @@ class Settings:
             errors.append("OPS_AGENT_DATABASE_URL is required.")
         if self.vector_provider != "pgvector":
             errors.append("OPS_AGENT_VECTOR_PROVIDER must be pgvector.")
+        if self.embedding_provider in {"openai", "openai-compatible", "remote", "real"} and not self.embedding_api_key:
+            errors.append("OPS_AGENT_EMBEDDING_API_KEY or OPENAI_API_KEY is required.")
+        if self.rerank_provider != "bge":
+            errors.append("OPS_AGENT_RERANK_PROVIDER must be bge.")
         if not self.root_username:
             errors.append("OPS_AGENT_ROOT_USERNAME is required.")
         if not self.root_password:

@@ -11,6 +11,14 @@ class AskRequest(BaseModel):
     question: str = Field(..., min_length=1)
 
 
+class ConversationCreateRequest(BaseModel):
+    title: str = "新对话"
+
+
+class ConversationAskRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+
+
 class AgentRunRequest(BaseModel):
     question: str = Field(..., min_length=1)
 

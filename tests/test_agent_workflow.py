@@ -121,4 +121,35 @@ def test_agent_uses_prompt_template_and_business_resources(tmp_path: Path) -> No
     prompt = llm.messages[-1].content
     assert "## 用户问题" in prompt
     assert "## 业务资源" in prompt
+    assert "企业级专业知识库助手" in prompt
+    assert "根据当前知识库和工具结果，暂无法确认" in prompt
+    assert "## 结论" in prompt
+    assert "## 依据" in prompt
+    assert "## 建议" in prompt
     assert "知识库问答必须基于检索证据生成" in prompt
+
+class FakeReActDebugLlm:
+    enabled = True
+
+    def complete(self, messages: list[LlmMessage], temperature: float = 0.2) -> str:
+        if "ReAct" in messages[0].content:
+            return "I forgot the required Action format."
+        return "工具结果：已完成"
+
+
+def test_agent_trace_records_react_debug_chain(tmp_path: Path) -> None:
+    workflow = AgentService(
+        vector_store=LocalVectorStore(index_file=tmp_path / "empty.db"),
+        llm=FakeReActDebugLlm(),  # type: ignore[arg-type]
+    )
+
+    answer = workflow.run("查询杭州某科技公司客户，并生成跟进邮件")
+    event_nodes = [event.node for event in workflow.recorder.events]
+
+    assert answer.route == "tool_call"
+    assert "llm.react.prompt" in event_nodes
+    assert "llm.react.raw_output" in event_nodes
+    assert "llm.react.parse_failure" in event_nodes
+    assert "tool.search_customer" in event_nodes
+    assert "tool.draft_followup_email" in event_nodes
+    assert "llm.answer.prompt" in event_nodes
