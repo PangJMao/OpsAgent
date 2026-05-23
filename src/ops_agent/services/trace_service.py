@@ -31,6 +31,10 @@ class TraceRecorder:
         self.traces_dir = traces_dir
         self.events: list[TraceEvent] = []
         self.created_at = utc_now_iso()
+        self.context: dict[str, Any] = {}
+
+    def set_context(self, **context: Any) -> None:
+        self.context.update({key: value for key, value in context.items() if value is not None})
 
     @contextmanager
     def span(self, node: str, input_summary: dict[str, Any] | None = None) -> Iterator[dict[str, Any]]:
@@ -63,7 +67,53 @@ class TraceRecorder:
         payload = {
             "trace_id": self.trace_id,
             "created_at": self.created_at,
+            "context": self.context,
             "events": [event.__dict__ for event in self.events],
         }
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         return path
+
+
+class TraceStore:
+    """Read-only access to persisted trace files."""
+
+    def __init__(self, traces_dir: Path = settings.traces_dir) -> None:
+        self.traces_dir = traces_dir
+
+    def list(self, limit: int = 50) -> list[dict[str, Any]]:
+        if not self.traces_dir.exists():
+            return []
+
+        traces = []
+        for path in self.traces_dir.glob("*.json"):
+            try:
+                payload = _read_trace(path)
+            except (OSError, json.JSONDecodeError):
+                continue
+            events = payload.get("events") or []
+            traces.append(
+                {
+                    "trace_id": payload.get("trace_id", path.stem),
+                    "created_at": payload.get("created_at", ""),
+                    "event_count": len(events),
+                    "has_error": any(bool(event.get("error")) for event in events if isinstance(event, dict)),
+                    "context": payload.get("context", {}),
+                }
+            )
+
+        return sorted(traces, key=lambda trace: str(trace.get("created_at", "")), reverse=True)[:limit]
+
+    def get(self, trace_id: str) -> dict[str, Any]:
+        if not trace_id.replace("-", "").replace("_", "").isalnum():
+            raise ValueError("Invalid trace_id.")
+        path = self.traces_dir / f"{trace_id}.json"
+        if not path.exists():
+            raise FileNotFoundError(trace_id)
+        return _read_trace(path)
+
+
+def _read_trace(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise json.JSONDecodeError("Trace payload must be an object.", doc="", pos=0)
+    return payload

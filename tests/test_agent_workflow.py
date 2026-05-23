@@ -49,6 +49,35 @@ def test_agent_executes_whitelisted_tools(tmp_path: Path) -> None:
     assert "工具结果" in answer.answer
 
 
+def test_agent_creates_ticket_for_customer_issue(tmp_path: Path) -> None:
+    workflow = AgentService(vector_store=LocalVectorStore(index_file=tmp_path / "empty.db"))
+
+    answer = workflow.run("查询杭州某科技公司客户，客户反馈系统严重故障，请创建高优先级工单")
+
+    assert answer.route == "tool_call"
+    assert [result.tool for result in answer.tool_results] == ["search_customer", "create_ticket"]
+    ticket = answer.tool_results[1]
+    assert ticket.ok is True
+    assert ticket.result["priority"] == "high"
+    assert ticket.result["status"] == "pending_human_confirm"
+
+
+def test_agent_generates_customer_visit_summary(tmp_path: Path) -> None:
+    workflow = AgentService(vector_store=LocalVectorStore(index_file=tmp_path / "empty.db"))
+
+    answer = workflow.run("为杭州某科技公司客户生成拜访纪要，客户关注预算范围和上线周期")
+
+    assert answer.route == "tool_call"
+    assert [result.tool for result in answer.tool_results] == [
+        "search_customer",
+        "summarize_customer_visit",
+    ]
+    summary = answer.tool_results[1]
+    assert summary.ok is True
+    assert "预算范围" in summary.result["customer_concerns"]
+    assert "next_steps" in summary.result
+
+
 def test_agent_refuses_low_confidence_knowledge_question(tmp_path: Path) -> None:
     workflow = AgentService(vector_store=LocalVectorStore(index_file=tmp_path / "empty.db"))
 

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpsAgent Console</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="login-view" class="login-panel">
+        <div>
+          <p class="eyebrow">OpsAgent</p>
+          <h1>企业知识库工作台</h1>
+        </div>
+        <form id="login-form" class="form-stack">
+          <label>
+            账号
+            <input id="login-username" autocomplete="username" required />
+          </label>
+          <label>
+            密码
+            <input id="login-password" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit">登录</button>
+          <p id="login-error" class="error"></p>
+        </form>
+      </section>
+
+      <section id="workspace-view" class="workspace hidden">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">OpsAgent</p>
+            <h1>知识库对话</h1>
+          </div>
+          <div class="identity">
+            <span id="current-user"></span>
+            <button id="logout-button" class="secondary">退出</button>
+          </div>
+        </header>
+
+        <div class="layout">
+          <section class="panel chat-panel">
+            <div id="messages" class="messages"></div>
+            <form id="chat-form" class="chat-input">
+              <textarea id="question" rows="3" placeholder="输入业务问题，回答会保留引用来源"></textarea>
+              <button type="submit">发送</button>
+            </form>
+          </section>
+
+          <aside id="admin-panel" class="panel admin-panel hidden">
+            <h2>管理员控制台</h2>
+
+            <section class="admin-section">
+              <h3>用户管理</h3>
+              <form id="user-form" class="form-grid">
+                <input id="new-username" placeholder="新用户名" required />
+                <input id="new-password" type="password" placeholder="初始密码" required />
+                <select id="new-role">
+                  <option value="user">普通用户</option>
+                  <option value="admin">管理员</option>
+                </select>
+                <button type="submit">添加用户</button>
+              </form>
+              <div id="users" class="user-list"></div>
+            </section>
+
+            <section class="admin-section">
+              <h3>知识文档</h3>
+              <form id="document-form" class="form-stack">
+                <input id="document-file" type="file" accept=".md,.txt,.pdf,.docx,.xlsx,.xls" />
+                <button type="submit">上传并入库</button>
+              </form>
+              <p id="document-status" class="muted"></p>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

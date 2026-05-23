@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ops_agent.config import settings
 from ops_agent.models import Chunk, RetrievalHit
+from ops_agent.services.database_service import DatabaseService
 
 TOKEN_RE = re.compile(r"[\w\u4e00-\u9fff]+", re.UNICODE)
 
@@ -206,3 +207,107 @@ class LocalVectorStore:
                 """,
                 rows,
             )
+
+
+class PgVectorStore:
+    """PostgreSQL + pgvector implementation for production knowledge retrieval."""
+
+    def __init__(self, embedding_model: HashingEmbeddingModel | None = None) -> None:
+        self.embedding_model = embedding_model or HashingEmbeddingModel()
+        self.database = DatabaseService()
+
+    def upsert_chunks(self, chunks: list[Chunk]) -> None:
+        if not chunks:
+            return
+        document_ids = sorted({chunk.document_id for chunk in chunks})
+        rows = [
+            (
+                chunk.chunk_id,
+                chunk.document_id,
+                chunk.title,
+                chunk.text,
+                chunk.start_char,
+                chunk.end_char,
+                json.dumps(chunk.metadata, ensure_ascii=False),
+                self.embedding_model.embed(chunk.text),
+            )
+            for chunk in chunks
+        ]
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.executemany("DELETE FROM knowledge_chunks WHERE document_id = %s", [(document_id,) for document_id in document_ids])
+                cursor.executemany(
+                    """
+                    INSERT INTO knowledge_chunks (
+                        chunk_id,
+                        document_id,
+                        title,
+                        text,
+                        start_char,
+                        end_char,
+                        metadata_json,
+                        embedding
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s::vector)
+                    ON CONFLICT (chunk_id) DO UPDATE SET
+                        document_id = excluded.document_id,
+                        title = excluded.title,
+                        text = excluded.text,
+                        start_char = excluded.start_char,
+                        end_char = excluded.end_char,
+                        metadata_json = excluded.metadata_json,
+                        embedding = excluded.embedding
+                    """,
+                    rows,
+                )
+            connection.commit()
+
+    def search(self, query: str, top_k: int = settings.top_k) -> list[RetrievalHit]:
+        embedding = self.embedding_model.embed(query)
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        chunk_id,
+                        document_id,
+                        title,
+                        text,
+                        start_char,
+                        end_char,
+                        metadata_json,
+                        1 - (embedding <=> %s::vector) AS score
+                    FROM knowledge_chunks
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                    """,
+                    (embedding, embedding, top_k),
+                )
+                rows = cursor.fetchall()
+
+        hits: list[RetrievalHit] = []
+        for row in rows:
+            metadata = row[6] if isinstance(row[6], dict) else json.loads(row[6])
+            chunk = Chunk(
+                chunk_id=row[0],
+                document_id=row[1],
+                title=row[2],
+                text=row[3],
+                start_char=row[4],
+                end_char=row[5],
+                metadata=metadata,
+            )
+            hits.append(RetrievalHit(chunk=chunk, score=float(row[7])))
+        return hits
+
+    def count(self) -> int:
+        with self.database.connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT COUNT(*) FROM knowledge_chunks")
+                return int(cursor.fetchone()[0])
+
+
+def create_vector_store() -> LocalVectorStore | PgVectorStore:
+    if settings.vector_provider == "pgvector":
+        return PgVectorStore()
+    return LocalVectorStore()

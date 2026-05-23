@@ -13,3 +13,29 @@ class AskRequest(BaseModel):
 
 class AgentRunRequest(BaseModel):
     question: str = Field(..., min_length=1)
+
+
+class EvaluationCaseRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+    expected_answer_contains: str = ""
+    expect_refused: bool = False
+    require_citation: bool = True
+
+
+class EvaluationRunRequest(BaseModel):
+    cases: list[EvaluationCaseRequest] = Field(..., min_length=1)
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
+
+
+class CreateUserRequest(BaseModel):
+    username: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=6)
+    role: str = "user"
+
+
+class UpdateUserRoleRequest(BaseModel):
+    role: str = Field(..., pattern="^(user|admin)$")

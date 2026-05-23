@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from ops_agent.models import ToolCall, ToolResult
 
 
@@ -10,6 +12,8 @@ class ToolRegistry:
         self._tools = {
             "search_customer": self._search_customer,
             "draft_followup_email": self._draft_followup_email,
+            "create_ticket": self._create_ticket,
+            "summarize_customer_visit": self._summarize_customer_visit,
         }
 
     @property
@@ -46,3 +50,41 @@ class ToolRegistry:
                 "body": f"您好，关于{topic}，我们已整理出初步信息，建议安排一次后续沟通确认细节。",
             },
         )
+
+    def _create_ticket(self, args: dict[str, object]) -> ToolResult:
+        company_name = str(args.get("company_name") or "客户").strip()
+        title = str(args.get("title") or "客户问题跟进").strip()
+        priority = str(args.get("priority") or "medium").strip().lower()
+        if priority not in {"low", "medium", "high"}:
+            priority = "medium"
+        return ToolResult(
+            tool="create_ticket",
+            ok=True,
+            result={
+                "ticket_id": f"TICKET-{_stable_id(company_name, title)}",
+                "company_name": company_name,
+                "title": title,
+                "priority": priority,
+                "status": "pending_human_confirm",
+                "assignee": "support_ops_demo",
+            },
+        )
+
+    def _summarize_customer_visit(self, args: dict[str, object]) -> ToolResult:
+        company_name = str(args.get("company_name") or "客户").strip()
+        notes = str(args.get("notes") or "客户拜访记录待补充").strip()
+        return ToolResult(
+            tool="summarize_customer_visit",
+            ok=True,
+            result={
+                "company_name": company_name,
+                "summary": f"{company_name}本次沟通重点：{notes}",
+                "customer_concerns": ["预算范围", "上线周期", "售后响应"],
+                "next_steps": ["确认决策人", "发送跟进邮件", "安排方案复盘"],
+            },
+        )
+
+
+def _stable_id(*parts: str) -> str:
+    digest = hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()
+    return f"{int(digest[:8], 16) % 100000:05d}"

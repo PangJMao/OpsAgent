@@ -3,3 +3,4 @@ uvicorn[standard]>=0.30.0
 pydantic>=2.8.0
 pypdf>=5.0.0
 xlrd>=2.0.1
+psycopg[binary]>=3.2.0

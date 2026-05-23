@@ -43,6 +43,12 @@ class Settings:
     indexes_dir: Path = storage_dir / "indexes"
     traces_dir: Path = storage_dir / "traces"
     vector_store_path: Path = indexes_dir / "rag_index.db"
+    require_external_services: bool = _env("OPS_AGENT_REQUIRE_EXTERNAL_SERVICES", "false").lower() == "true"
+    database_url: str = _env("OPS_AGENT_DATABASE_URL", "")
+    vector_provider: str = _env("OPS_AGENT_VECTOR_PROVIDER", "local")
+    root_username: str = _env("OPS_AGENT_ROOT_USERNAME", "")
+    root_password: str = _env("OPS_AGENT_ROOT_PASSWORD", "")
+    session_secret: str = _env("OPS_AGENT_SESSION_SECRET", "")
     chunk_size: int = 700
     chunk_overlap: int = 120
     embedding_dimensions: int = 256
@@ -54,6 +60,22 @@ class Settings:
     deepseek_model: str = _env("DEEPSEEK_MODEL", "deepseek-chat")
     llm_timeout_seconds: float = float(_env("OPS_AGENT_LLM_TIMEOUT_SECONDS", "20"))
     agent_max_retries: int = int(_env("OPS_AGENT_MAX_RETRIES", "2"))
+
+    def startup_errors(self) -> list[str]:
+        errors: list[str] = []
+        if not self.require_external_services:
+            return errors
+        if not self.database_url:
+            errors.append("OPS_AGENT_DATABASE_URL is required.")
+        if self.vector_provider != "pgvector":
+            errors.append("OPS_AGENT_VECTOR_PROVIDER must be pgvector.")
+        if not self.root_username:
+            errors.append("OPS_AGENT_ROOT_USERNAME is required.")
+        if not self.root_password:
+            errors.append("OPS_AGENT_ROOT_PASSWORD is required.")
+        if not self.session_secret:
+            errors.append("OPS_AGENT_SESSION_SECRET is required.")
+        return errors
 
 
 settings = Settings()

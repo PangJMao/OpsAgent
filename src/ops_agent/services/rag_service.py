@@ -12,7 +12,7 @@ from ops_agent.services.document_service import (
     persist_source_document,
 )
 from ops_agent.services.trace_service import TraceRecorder
-from ops_agent.services.vector_store import LocalVectorStore
+from ops_agent.services.vector_store import LocalVectorStore, PgVectorStore, create_vector_store
 
 
 class RagService:
@@ -20,10 +20,10 @@ class RagService:
 
     def __init__(
         self,
-        vector_store: LocalVectorStore | None = None,
+        vector_store: LocalVectorStore | PgVectorStore | None = None,
         recorder: TraceRecorder | None = None,
     ) -> None:
-        self.vector_store = vector_store or LocalVectorStore()
+        self.vector_store = vector_store or create_vector_store()
         self.recorder = recorder or TraceRecorder()
 
     def ingest(self, path: Path) -> dict[str, object]:

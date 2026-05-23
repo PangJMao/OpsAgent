@@ -1,4 +1,13 @@
-from ops_agent.models.api import AgentRunRequest, AskRequest, IngestRequest
+from ops_agent.models.api import (
+    AgentRunRequest,
+    AskRequest,
+    CreateUserRequest,
+    EvaluationCaseRequest,
+    EvaluationRunRequest,
+    IngestRequest,
+    LoginRequest,
+    UpdateUserRoleRequest,
+)
 from ops_agent.models.domain import (
     AgentAnswer,
     AgentReview,
@@ -20,12 +29,17 @@ __all__ = [
     "AskRequest",
     "Chunk",
     "Citation",
+    "CreateUserRequest",
     "Document",
+    "EvaluationCaseRequest",
+    "EvaluationRunRequest",
     "IngestRequest",
+    "LoginRequest",
     "NormalizedDocument",
     "RagAnswer",
     "RetrievalHit",
     "ToolCall",
     "ToolResult",
+    "UpdateUserRoleRequest",
     "utc_now_iso",
 ]

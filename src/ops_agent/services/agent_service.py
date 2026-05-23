@@ -12,7 +12,7 @@ from ops_agent.resources import ResourceLoader
 from ops_agent.services.llm_client import DeepSeekChatClient, LlmMessage
 from ops_agent.services.tool_service import ToolRegistry
 from ops_agent.services.trace_service import TraceRecorder
-from ops_agent.services.vector_store import LocalVectorStore
+from ops_agent.services.vector_store import LocalVectorStore, PgVectorStore, create_vector_store
 
 T = TypeVar("T")
 
@@ -34,14 +34,14 @@ class AgentService:
 
     def __init__(
         self,
-        vector_store: LocalVectorStore | None = None,
+        vector_store: LocalVectorStore | PgVectorStore | None = None,
         recorder: TraceRecorder | None = None,
         llm: ChatClient | None = None,
         tools: ToolRegistry | None = None,
         prompt_manager: PromptManager | None = None,
         resource_loader: ResourceLoader | None = None,
     ) -> None:
-        self.vector_store = vector_store or LocalVectorStore()
+        self.vector_store = vector_store or create_vector_store()
         self.recorder = recorder or TraceRecorder()
         self.llm = llm or DeepSeekChatClient()
         self.tools = tools or ToolRegistry()
@@ -126,7 +126,7 @@ class AgentService:
         lowered = question.lower()
         knowledge_keywords = ("政策", "规则", "制度", "知识库", "售后", "响应")
         wants_tool = (
-            any(keyword in lowered for keyword in ("crm", "邮件", "跟进"))
+            any(keyword in lowered for keyword in ("crm", "邮件", "跟进", "工单", "拜访", "纪要"))
             or ("查询" in lowered and "客户" in lowered)
         )
         wants_knowledge = any(keyword in lowered for keyword in knowledge_keywords)
@@ -145,6 +145,24 @@ class AgentService:
         calls = [ToolCall(tool="search_customer", args={"company_name": company_name})]
         if "邮件" in question or "跟进" in question:
             calls.append(ToolCall(tool="draft_followup_email", args={"company_name": company_name, "topic": "客户跟进"}))
+        if "工单" in question or "故障" in question or "问题" in question:
+            calls.append(
+                ToolCall(
+                    tool="create_ticket",
+                    args={
+                        "company_name": company_name,
+                        "title": _extract_ticket_title(question),
+                        "priority": _infer_priority(question),
+                    },
+                )
+            )
+        if "拜访" in question or "纪要" in question or "会议" in question:
+            calls.append(
+                ToolCall(
+                    tool="summarize_customer_visit",
+                    args={"company_name": company_name, "notes": _extract_visit_notes(question)},
+                )
+            )
         return calls
 
     def _execute_tools(self, calls: list[ToolCall]) -> list[ToolResult]:
@@ -297,6 +315,32 @@ def _extract_company_name(question: str) -> str:
             start = max(0, index - 12)
             return question[start : index + len(marker)].strip(" ，,。")
     return "演示客户"
+
+
+def _extract_ticket_title(question: str) -> str:
+    for marker in ("问题", "故障", "工单"):
+        index = question.find(marker)
+        if index >= 0:
+            start = max(0, index - 18)
+            end = min(len(question), index + len(marker) + 18)
+            return question[start:end].strip(" ，,。")
+    return "客户问题跟进"
+
+
+def _extract_visit_notes(question: str) -> str:
+    for marker in ("拜访", "纪要", "会议"):
+        index = question.find(marker)
+        if index >= 0:
+            return question[max(0, index - 20) :].strip(" ，,。")
+    return question[:80].strip(" ，,。")
+
+
+def _infer_priority(question: str) -> str:
+    if any(keyword in question for keyword in ("紧急", "严重", "阻塞", "高优先级")):
+        return "high"
+    if any(keyword in question for keyword in ("低优先级", "不紧急")):
+        return "low"
+    return "medium"
 
 
 def _compact(text: str, limit: int = 160) -> str:
