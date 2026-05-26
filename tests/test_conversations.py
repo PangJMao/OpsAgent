@@ -54,3 +54,23 @@ def test_conversations_are_scoped_to_current_user() -> None:
         assert alice_deletes_bob.status_code == 404
     finally:
         _restore_settings(original)
+
+
+def test_default_conversation_title_updates_from_first_question() -> None:
+    original = _use_memory_state()
+    try:
+        client = TestClient(create_app())
+        client.post("/auth/login", json={"username": "root", "password": "root"})
+        conversation = client.post("/conversations", json={"title": "新对话"}).json()["conversation"]
+
+        conversation_service.add_message(
+            "root",
+            conversation["conversation_id"],
+            "user",
+            "D10-D15 阶段可以使用哪些更强的话术？",
+        )
+        conversations = client.get("/conversations").json()["conversations"]
+
+        assert conversations[0]["title"] == "D10-D15 阶段可以使用哪些更强的话术"
+    finally:
+        _restore_settings(original)

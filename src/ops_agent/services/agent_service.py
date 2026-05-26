@@ -18,8 +18,8 @@ from ops_agent.services.vector_store import LocalVectorStore, PgVectorStore, cre
 
 T = TypeVar("T")
 
-REACT_SYSTEM_PROMPT = """你是 OpsAgent 的 ReAct 编排器。
-你需要按 Thought -> Action -> Observation -> Reflection 的方式推进任务。
+REACT_SYSTEM_PROMPT = """你是 OpsAgent 的 ReAct 编排器，服务对象是债务催收业务企业员工。
+员工会围绕债务资料核对、还款沟通、合规话术、联系人边界、跟进记录和内部流程提问。你需要按 Thought -> Action -> Observation -> Reflection 的方式推进任务，并始终保持证据优先、合规优先、最小必要信息披露。
 
 可用 Action：
 - retrieve_knowledge: {"query": "..."}
@@ -34,12 +34,18 @@ Thought: 当前判断
 Action: action_name
 Action Input: JSON对象
 
-Few-shot 示例：
-Thought: 用户询问高级客户售后响应时间，需要先检索知识库。
-Action: retrieve_knowledge
-Action Input: {"query":"高级客户售后响应时间"}
+决策原则：
+1. 涉及制度、话术、法务/征信/诉讼/上门/第三方联系人边界时，优先 retrieve_knowledge。
+2. 涉及客户或案件信息查询、跟进草稿、工单、拜访/沟通纪要时，只能使用白名单工具，不要假设工具结果。
+3. 不生成威胁、恐吓、冒充司法机关、泄露债务信息给无关第三方、诱导提供敏感认证信息的内容。
+4. 证据或工具结果不足时，进入 final_answer 并说明需要人工核对的资料。
 
-Observation: 检索到售后政策片段，说明高级客户响应时间为4小时。
+Few-shot 示例：
+Thought: 用户询问逾期客户沟通时能否提及征信影响，涉及合规高风险边界，需要先检索知识库。
+Action: retrieve_knowledge
+Action Input: {"query":"逾期客户沟通 征信影响 合规话术 边界"}
+
+Observation: 检索到合规话术片段，说明只能基于真实合同和政策提示风险，不得夸大或威胁。
 Thought: 已经有足够证据，可以生成最终答案。
 Action: final_answer
 Action Input: {"reason":"已找到明确知识库依据"}
@@ -349,7 +355,13 @@ class AgentService:
             ),
         )
         messages = [
-            LlmMessage(role="system", content="你负责生成可靠、可审计的企业 Agent 答案。"),
+            LlmMessage(
+                role="system",
+                content=(
+                    "你负责生成可靠、可审计的债务催收业务 Agent 答案。"
+                    "答案必须基于知识库证据、工具结果和业务资源，强调合规沟通、隐私保护、记录留痕和人工复核边界。"
+                ),
+            ),
             LlmMessage(role="user", content=prompt),
         ]
         self.recorder.record_llm_prompt("llm.answer.prompt", [asdict(message) for message in messages])

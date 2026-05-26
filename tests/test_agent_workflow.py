@@ -121,12 +121,13 @@ def test_agent_uses_prompt_template_and_business_resources(tmp_path: Path) -> No
     prompt = llm.messages[-1].content
     assert "## 用户问题" in prompt
     assert "## 业务资源" in prompt
-    assert "企业级专业知识库助手" in prompt
+    assert "债务催收业务员工" in prompt
     assert "根据当前知识库和工具结果，暂无法确认" in prompt
     assert "## 结论" in prompt
     assert "## 依据" in prompt
     assert "## 建议" in prompt
     assert "知识库问答必须基于检索证据生成" in prompt
+    assert "不得编造债务事实" in prompt
 
 class FakeReActDebugLlm:
     enabled = True

@@ -49,17 +49,22 @@ class Settings:
     root_username: str = _env("OPS_AGENT_ROOT_USERNAME", "")
     root_password: str = _env("OPS_AGENT_ROOT_PASSWORD", "")
     session_secret: str = _env("OPS_AGENT_SESSION_SECRET", "")
-    chunk_size: int = 700
-    chunk_overlap: int = 120
+    chunk_size: int = int(_env("OPS_AGENT_CHUNK_SIZE", "900"))
+    chunk_overlap: int = int(_env("OPS_AGENT_CHUNK_OVERLAP", "150"))
     embedding_dimensions: int = 256
     embedding_provider: str = _env("OPS_AGENT_EMBEDDING_PROVIDER", "hashing")
     embedding_api_key: str = _env("OPS_AGENT_EMBEDDING_API_KEY", _env("OPENAI_API_KEY", ""))
     embedding_base_url: str = _env("OPS_AGENT_EMBEDDING_BASE_URL", "https://api.openai.com/v1")
     embedding_model: str = _env("OPS_AGENT_EMBEDDING_MODEL", "text-embedding-3-small")
     embedding_timeout_seconds: float = float(_env("OPS_AGENT_EMBEDDING_TIMEOUT_SECONDS", "20"))
+    document_vector_provider: str = _env("OPS_AGENT_DOCUMENT_VECTOR_PROVIDER", _env("OPS_AGENT_VECTOR_PROVIDER", "pgvector"))
+    pdf_parser_backend: str = _env("OPS_AGENT_PDF_PARSER_BACKEND", "auto")
+    retrieval_mode: str = _env("OPS_AGENT_RETRIEVAL_MODE", "hybrid")
+    hybrid_vector_weight: float = float(_env("OPS_AGENT_HYBRID_VECTOR_WEIGHT", "0.65"))
+    hybrid_bm25_weight: float = float(_env("OPS_AGENT_HYBRID_BM25_WEIGHT", "0.35"))
     min_relevance_score: float = 0.08
     top_k: int = 4
-    rerank_provider: str = _env("OPS_AGENT_RERANK_PROVIDER", "bge")
+    rerank_provider: str = _env("OPS_AGENT_RERANK_PROVIDER", "local")
     rerank_model: str = _env("OPS_AGENT_RERANK_MODEL", "BAAI/bge-reranker-base")
     rerank_use_fp16: bool = _env("OPS_AGENT_RERANK_USE_FP16", "true").lower() == "true"
     rerank_require_model: bool = _env("OPS_AGENT_RERANK_REQUIRE_MODEL", "false").lower() == "true"
@@ -82,8 +87,8 @@ class Settings:
             errors.append("OPS_AGENT_VECTOR_PROVIDER must be pgvector.")
         if self.embedding_provider in {"openai", "openai-compatible", "remote", "real"} and not self.embedding_api_key:
             errors.append("OPS_AGENT_EMBEDDING_API_KEY or OPENAI_API_KEY is required.")
-        if self.rerank_provider != "bge":
-            errors.append("OPS_AGENT_RERANK_PROVIDER must be bge.")
+        if self.rerank_provider not in {"bge", "local", "keyword"}:
+            errors.append("OPS_AGENT_RERANK_PROVIDER must be bge, local, or keyword.")
         if not self.root_username:
             errors.append("OPS_AGENT_ROOT_USERNAME is required.")
         if not self.root_password:

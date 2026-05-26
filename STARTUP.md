@@ -1,6 +1,6 @@
-# OpsAgent 项目启动文档
+# OpsAgent 手动启动文档
 
-本文档用于从零启动 OpsAgent，包括 PostgreSQL + pgvector、数据库初始化、后端服务、前端页面和常见问题排查。
+本文档用于手动启动 OpsAgent，包括 PostgreSQL + pgvector、数据库初始化、Python 依赖安装、后端服务和前端页面。
 
 ## 1. 环境要求
 
@@ -16,15 +16,15 @@ D:\Agent_Demo\OpsAgent
 
 ## 2. 启动 pgvector 数据库
 
-本项目使用 PostgreSQL + pgvector 作为专业向量知识库。推荐用 Docker 启动，避免本机 PostgreSQL 缺少 `vector` 扩展。
+本项目使用 PostgreSQL + pgvector 作为向量知识库。推荐只用 Docker 启动数据库，应用仍在本机 Python 环境运行。
 
-先确认 Docker Desktop 已启动：
+确认 Docker Desktop 已启动：
 
 ```powershell
 docker version
 ```
 
-启动 pgvector 容器：
+首次启动 pgvector 容器：
 
 ```powershell
 docker run --name ops-agent-pgvector `
@@ -91,9 +91,16 @@ OPS_AGENT_VECTOR_PROVIDER=pgvector
 OPS_AGENT_ROOT_USERNAME=root
 OPS_AGENT_ROOT_PASSWORD=123456
 OPS_AGENT_SESSION_SECRET=change-me-session-secret
+
+OPS_AGENT_RERANK_PROVIDER=bge
+OPS_AGENT_RERANK_MODEL=BAAI/bge-reranker-base
+OPS_AGENT_RERANK_USE_FP16=true
+OPS_AGENT_RERANK_REQUIRE_MODEL=false
+OPS_AGENT_RETRIEVAL_TOP_K=12
+OPS_AGENT_RERANK_TOP_K=3
 ```
 
-注意：如果使用 Docker 容器，上面的端口必须是 `5433`。
+注意：如果使用上面的 Docker 数据库容器，数据库端口必须是 `5433`。
 
 ## 5. 安装依赖
 
@@ -102,6 +109,14 @@ cd D:\Agent_Demo\OpsAgent
 D:\Users\Liuhj\anaconda3\python.exe -m pip install -r requirements.txt
 D:\Users\Liuhj\anaconda3\python.exe -m pip install -e .
 ```
+
+`FlagEmbedding` 会安装 Torch、Transformers 等依赖，首次安装会比较慢。如果只是做基础演示，可保持：
+
+```env
+OPS_AGENT_RERANK_REQUIRE_MODEL=false
+```
+
+BGE 模型不可用时系统会降级到本地轻量 rerank。
 
 ## 6. 启动系统
 
@@ -116,7 +131,7 @@ D:\Users\Liuhj\anaconda3\python.exe -m uvicorn ops_agent.main:app --host 127.0.0
 http://127.0.0.1:8000/
 ```
 
-root 登录信息：
+默认 root 登录信息：
 
 ```text
 用户名：root
@@ -169,27 +184,33 @@ Username: postgres
 Password: 123456
 ```
 
-## 9. 主要功能
+## 9. RAG 检索与 Rerank
 
-普通用户：
+当前 RAG 流程：
 
-- 登录系统
-- 进行知识库对话
-- 答案返回引用来源，降低幻觉风险
+```text
+用户提问
+  -> FastAPI 接口接收请求
+  -> Pydantic 校验请求结构
+  -> Service 层组织 Agent / RAG 流程
+  -> 向量库初步召回 top 12
+  -> BGE Reranker 重新判断相关性
+  -> 取最相关 top 3
+  -> 用户问题 + 知识片段 + Prompt 规则发送给 LLM
+  -> LLM 基于上下文生成答案
+  -> Service 层整理结果
+  -> FastAPI 返回给调用方
+```
 
-管理员：
+相关参数：
 
-- 添加普通用户
-- 删除普通用户
-- 上传文档并写入知识库
-
-root 用户：
-
-- 拥有管理员所有能力
-- 可以新增用户
-- 可以删除用户
-- 可以把普通用户提升为管理员
-- root 用户不能被删除，root 角色不能被普通管理员赋予
+```env
+OPS_AGENT_RETRIEVAL_TOP_K=12
+OPS_AGENT_RERANK_TOP_K=3
+OPS_AGENT_RERANK_PROVIDER=bge
+OPS_AGENT_RERANK_MODEL=BAAI/bge-reranker-base
+OPS_AGENT_RERANK_REQUIRE_MODEL=false
+```
 
 ## 10. 文档入库流程
 
@@ -284,6 +305,7 @@ startup_errors
 - `ops_agent` 数据库不存在
 - `ops_agent` 用户密码错误
 - `vector` 扩展没有启用
+- `OPS_AGENT_RERANK_REQUIRE_MODEL=true` 但 BGE 模型无法加载
 
 ### 重新创建数据库容器
 
@@ -295,4 +317,3 @@ docker rm ops-agent-pgvector
 ```
 
 然后重新执行第 2、3 步。
-

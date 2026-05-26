@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import json
+import re
 import secrets
 from typing import Any
 
 from ops_agent.config import settings
 from ops_agent.models import utc_now_iso
 from ops_agent.services.database_service import DatabaseService
+
+
+DEFAULT_TITLES = {"", "新对话", "鏂板璇?", "New chat"}
 
 
 @dataclass
@@ -147,6 +151,17 @@ class ConversationService:
                             json.dumps(message.citations, ensure_ascii=False),
                         ),
                     )
+                    if role == "user":
+                        cursor.execute(
+                            """
+                            UPDATE conversations
+                            SET title = %s
+                            WHERE conversation_id = %s
+                              AND user_id = %s
+                              AND title IN ('新对话', '鏂板璇?', 'New chat', '')
+                            """,
+                            (summarize_title(content), conversation_id, user_id),
+                        )
                     cursor.execute(
                         "UPDATE conversations SET updated_at = now() WHERE conversation_id = %s",
                         (conversation_id,),
@@ -155,6 +170,8 @@ class ConversationService:
             return asdict(message)
         self._messages.setdefault(conversation_id, []).append(message)
         conversation = self._conversations[conversation_id]
+        if role == "user" and _is_default_title(conversation.title):
+            conversation.title = summarize_title(content)
         conversation.updated_at = now
         return asdict(message)
 
@@ -172,6 +189,18 @@ class ConversationService:
         record = self._conversations.get(conversation_id)
         if record is None or record.user_id != user_id:
             raise KeyError(conversation_id)
+
+
+def summarize_title(text: str, limit: int = 24) -> str:
+    title = " ".join((text or "").split())
+    title = re.sub(r"[？?。.!！；;：:]+$", "", title).strip()
+    if not title:
+        return "新对话"
+    return title if len(title) <= limit else f"{title[:limit]}..."
+
+
+def _is_default_title(title: str) -> bool:
+    return (title or "").strip() in DEFAULT_TITLES
 
 
 def _conversation_from_row(row) -> ConversationRecord:

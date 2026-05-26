@@ -34,7 +34,10 @@ class BgeReranker:
 
         model = self._load_model()
         pairs = [[query, hit.chunk.text] for hit in hits]
-        raw_scores = model.compute_score(pairs)
+        try:
+            raw_scores = model.compute_score(pairs)
+        except Exception as exc:
+            raise RuntimeError(f"BGE reranker scoring failed: {exc}") from exc
         scores = _normalize_scores(raw_scores)
         ranked = sorted(zip(scores, range(len(hits)), hits), key=lambda item: (item[0], -item[1]), reverse=True)
         return [hit for _, _, hit in ranked[:top_k]]
@@ -49,7 +52,10 @@ class BgeReranker:
         except (ImportError, AttributeError) as exc:
             raise RuntimeError("BGE reranker requires the FlagEmbedding package.") from exc
 
-        self._model = flag_reranker(self.model_name, use_fp16=self.use_fp16)
+        try:
+            self._model = flag_reranker(self.model_name, use_fp16=self.use_fp16)
+        except Exception as exc:
+            raise RuntimeError(f"BGE reranker model is unavailable: {exc}") from exc
         return self._model
 
 
@@ -92,7 +98,11 @@ class ResilientReranker:
 
 def create_reranker() -> Reranker:
     provider = settings.rerank_provider.lower()
+    if provider in {"local", "keyword"}:
+        return LocalKeywordReranker()
     if provider == "bge":
+        if not settings.rerank_require_model:
+            return LocalKeywordReranker()
         return ResilientReranker(
             primary=BgeReranker(),
             fallback=LocalKeywordReranker(),

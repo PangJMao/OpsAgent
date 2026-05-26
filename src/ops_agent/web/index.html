@@ -95,6 +95,7 @@
             </div>
             <form id="chat-form" class="composer">
               <textarea id="question" rows="1" placeholder="给 OpsAgent 发送消息"></textarea>
+              <button id="stop-button" class="stop-button hidden" type="button" title="停止">■</button>
               <button id="send-button" class="send-button" type="submit" title="发送">↑</button>
             </form>
           </section>
@@ -132,12 +133,16 @@
               </div>
               <form id="document-form" class="stack-form">
                 <label class="file-drop">
-                  <input id="document-file" type="file" multiple accept=".md,.txt,.pdf,.docx,.xlsx,.xls" />
+                  <input id="document-file" type="file" multiple accept=".md,.txt,.pdf,.doc,.docx,.xlsx,.xls" />
                   <span>选择多个文档</span>
                   <small>支持 md、txt、pdf、docx、xlsx、xls</small>
                 </label>
                 <button class="primary-action" type="submit">逐个上传并入库</button>
               </form>
+              <div class="danger-zone">
+                <button id="clear-knowledge" class="primary-action danger-action" type="button">清空向量知识库</button>
+                <small>会软删除当前知识库内所有可检索向量，入库日志会保留。</small>
+              </div>
             </div>
             <div class="section-card wide">
               <div class="section-heading">

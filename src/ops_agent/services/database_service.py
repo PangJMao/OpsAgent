@@ -44,8 +44,10 @@ class DatabaseService:
             with self.connect() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute("SELECT 1")
+                    cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
                     cursor.execute("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
                     vector_ready = bool(cursor.fetchone()[0])
+                connection.commit()
         except Exception as exc:
             raise StartupConfigurationError(f"Database is unavailable: {exc}") from exc
         if not vector_ready:
@@ -113,11 +115,14 @@ class DatabaseService:
                         end_char INTEGER NOT NULL,
                         metadata_json JSONB NOT NULL,
                         embedding vector({settings.embedding_dimensions}) NOT NULL,
+                        deleted BOOLEAN NOT NULL DEFAULT false,
+                        deleted_at TIMESTAMPTZ,
+                        ingestion_run_id TEXT,
                         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
                     )
                     """
                 )
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_document ON knowledge_chunks(document_id)")
+                self._ensure_knowledge_schema(cursor)
                 cursor.execute(
                     """
                     CREATE TABLE IF NOT EXISTS conversations (
@@ -163,3 +168,63 @@ class DatabaseService:
                     (settings.root_username, hash_password(settings.root_password)),
                 )
             connection.commit()
+
+    def ensure_knowledge_indexes(self) -> None:
+        with self.connect() as connection:
+            with connection.cursor() as cursor:
+                self._ensure_knowledge_schema(cursor)
+            connection.commit()
+
+    def _ensure_knowledge_schema(self, cursor) -> None:
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        cursor.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS knowledge_chunks (
+                chunk_id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                text TEXT NOT NULL,
+                start_char INTEGER NOT NULL,
+                end_char INTEGER NOT NULL,
+                metadata_json JSONB NOT NULL,
+                embedding vector({settings.embedding_dimensions}) NOT NULL,
+                deleted BOOLEAN NOT NULL DEFAULT false,
+                deleted_at TIMESTAMPTZ,
+                ingestion_run_id TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        cursor.execute("ALTER TABLE knowledge_chunks ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT false")
+        cursor.execute("ALTER TABLE knowledge_chunks ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ")
+        cursor.execute("ALTER TABLE knowledge_chunks ADD COLUMN IF NOT EXISTS ingestion_run_id TEXT")
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ingestion_logs (
+                log_id BIGSERIAL PRIMARY KEY,
+                ingestion_run_id TEXT NOT NULL,
+                source TEXT NOT NULL,
+                old_chunk_count INTEGER NOT NULL,
+                new_chunk_count INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                message TEXT NOT NULL DEFAULT '',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_document ON knowledge_chunks(document_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_deleted ON knowledge_chunks(deleted)")
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_text_fts
+            ON knowledge_chunks
+            USING GIN (to_tsvector('simple', text))
+            WHERE deleted = false
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_metadata_source
+            ON knowledge_chunks ((metadata_json->>'source'))
+            """
+        )

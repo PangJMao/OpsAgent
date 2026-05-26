@@ -11,7 +11,7 @@ from xml.etree import ElementTree
 from ops_agent.config import settings
 from ops_agent.models import Chunk, Document, NormalizedDocument
 
-SUPPORTED_SUFFIXES = {".md", ".txt", ".pdf", ".docx", ".xlsx", ".xls"}
+SUPPORTED_SUFFIXES = {".md", ".txt", ".pdf", ".doc", ".docx", ".xlsx", ".xls", ".csv"}
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 
 
@@ -32,12 +32,16 @@ def normalize_to_markdown(path: Path) -> NormalizedDocument:
         return _normalize_text(path)
     if suffix == ".pdf":
         return _normalize_pdf(path)
+    if suffix == ".doc":
+        return _normalize_with_document_processing(path)
     if suffix == ".docx":
         return _normalize_docx(path)
     if suffix == ".xlsx":
         return _normalize_xlsx(path)
     if suffix == ".xls":
         return _normalize_xls(path)
+    if suffix == ".csv":
+        return _normalize_csv(path)
     raise ValueError(f"暂不支持归一化该文档类型：{suffix}")
 
 
@@ -55,6 +59,8 @@ def load_text_document(path: Path) -> Document:
         content=normalized.markdown,
         metadata={
             **normalized.metadata,
+            "source": str(path),
+            "source_path": str(path),
             "source_suffix": path.suffix.lower(),
             "normalized_format": "markdown",
             "bytes": path.stat().st_size,
@@ -108,6 +114,9 @@ def _normalize_pdf(path: Path) -> NormalizedDocument:
 
 
 def _normalize_docx(path: Path) -> NormalizedDocument:
+    if not zipfile.is_zipfile(path):
+        return _normalize_with_document_processing(path)
+
     paragraphs: list[str] = []
     with zipfile.ZipFile(path) as archive:
         xml = archive.read("word/document.xml")
@@ -191,6 +200,16 @@ def _normalize_xls(path: Path) -> NormalizedDocument:
             "sheet_count": len(sections),
         },
     )
+
+
+def _normalize_csv(path: Path) -> NormalizedDocument:
+    return _normalize_with_document_processing(path)
+
+
+def _normalize_with_document_processing(path: Path) -> NormalizedDocument:
+    from ops_agent.services.document_processing.service import DocumentProcessingService
+
+    return DocumentProcessingService().to_markdown(path)
 
 
 def _read_xlsx_shared_strings(xml: bytes) -> list[str]:
@@ -413,3 +432,11 @@ def _first_heading(markdown: str) -> str | None:
         if stripped.startswith("# "):
             return stripped[2:].strip() or None
     return None
+
+
+def ingest_documents(path: Path, write: bool = True):
+    """Public facade for the new multi-format document processing pipeline."""
+
+    from ops_agent.services.document_processing.service import DocumentProcessingService
+
+    return DocumentProcessingService().ingest(path, write=write)

@@ -11,6 +11,7 @@ from ops_agent.services import RagService, answer_to_dict
 from ops_agent.services.database_service import StartupConfigurationError
 from ops_agent.services.permission_service import PermissionService
 from ops_agent.services.trace_service import TraceRecorder
+from ops_agent.services.vector_store import create_vector_store
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 
@@ -29,7 +30,7 @@ def ingest_document(
     service = RagService(recorder=recorder)
     try:
         return service.ingest(Path(request.path))
-    except (OSError, RuntimeError, StartupConfigurationError) as exc:
+    except (OSError, RuntimeError, ValueError, StartupConfigurationError) as exc:
         raise HTTPException(status_code=503, detail=f"知识库入库失败：{exc}") from exc
 
 
@@ -47,7 +48,7 @@ def ask_question(
     service = RagService(recorder=recorder)
     try:
         return answer_to_dict(service.ask(request.question))
-    except (RuntimeError, StartupConfigurationError) as exc:
+    except (RuntimeError, ValueError, StartupConfigurationError) as exc:
         raise HTTPException(status_code=503, detail=f"知识库检索不可用：{exc}") from exc
 
 
@@ -70,8 +71,24 @@ async def upload_document(
     recorder = _recorder_for_context(context)
     try:
         return RagService(recorder=recorder).ingest(target)
-    except (OSError, RuntimeError, StartupConfigurationError) as exc:
+    except (OSError, RuntimeError, ValueError, StartupConfigurationError) as exc:
         raise HTTPException(status_code=503, detail=f"文档入库失败：{exc}") from exc
+
+
+@router.delete("/knowledge")
+def clear_knowledge(
+    http_request: Request,
+    x_user_id: str | None = Header(default=None),
+    x_role: str | None = Header(default=None),
+    x_scopes: str | None = Header(default=None),
+) -> dict[str, object]:
+    context = current_context(http_request, x_user_id, x_role, x_scopes)
+    _require(context, "rag.ingest")
+    try:
+        deleted_count = create_vector_store().clear_all()
+        return {"ok": True, "deleted_count": deleted_count}
+    except (OSError, RuntimeError, ValueError, StartupConfigurationError) as exc:
+        raise HTTPException(status_code=503, detail=f"清空知识库失败：{exc}") from exc
 
 
 def _require(context, action: str) -> None:

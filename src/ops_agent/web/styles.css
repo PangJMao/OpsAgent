@@ -201,6 +201,7 @@ p {
 
 .primary-action,
 .send-button,
+.stop-button,
 .icon-button,
 .new-chat-button,
 .nav-item,
@@ -220,6 +221,11 @@ p {
   background: var(--button);
   color: var(--button-text);
   font-weight: 650;
+}
+
+.danger-action {
+  background: var(--danger);
+  color: #ffffff;
 }
 
 .primary-action:active,
@@ -645,7 +651,7 @@ p {
 .composer {
   width: min(100% - 32px, 780px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 34px;
+  grid-template-columns: minmax(0, 1fr) 34px 34px;
   align-items: end;
   gap: 10px;
   margin: 0 auto 20px;
@@ -666,6 +672,32 @@ p {
   color: var(--button-text);
   font-size: 18px;
   line-height: 1;
+}
+
+.stop-button {
+  width: 32px;
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.stop-button:hover {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.message.stopped .answer-text::after {
+  display: none;
+}
+
+.stream-status {
+  color: var(--subtle);
+  font-size: 12px;
 }
 
 .admin-grid {
@@ -722,6 +754,18 @@ p {
 
 .file-drop small {
   color: var(--subtle);
+}
+
+.danger-zone {
+  display: grid;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.danger-zone small {
+  color: var(--subtle);
+  line-height: 1.5;
 }
 
 .user-list,

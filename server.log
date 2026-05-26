@@ -104,3 +104,6 @@ INFO:     127.0.0.1:60819 - "GET /conversations/fc9f47efcf09f9acbfee83e1/message
 INFO:     127.0.0.1:65506 - "POST /conversations/fc9f47efcf09f9acbfee83e1/messages/stream HTTP/1.1" 200 OK
 INFO:     127.0.0.1:65506 - "GET /conversations HTTP/1.1" 200 OK
 INFO:     127.0.0.1:65506 - "GET /conversations/fc9f47efcf09f9acbfee83e1/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58345 - "POST /conversations/fc9f47efcf09f9acbfee83e1/messages/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58345 - "GET /conversations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58345 - "GET /conversations/fc9f47efcf09f9acbfee83e1/messages HTTP/1.1" 200 OK

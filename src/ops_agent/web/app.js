@@ -3,6 +3,7 @@ const state = {
   conversations: [],
   activeConversationId: null,
   loading: false,
+  activeStreamController: null,
   sidebarCollapsed: localStorage.getItem("ops-agent-sidebar-collapsed") === "true",
 };
 
@@ -155,10 +156,23 @@ function createStreamingMessage() {
     </section>
     <div class="message-bubble answer-text"></div>
     <div class="citations"></div>
+    <div class="stream-status"></div>
   `;
   $("messages").appendChild(message);
   $("messages").scrollTop = $("messages").scrollHeight;
   return message;
+}
+
+function markStreamStopped(message) {
+  message.classList.remove("streaming");
+  message.classList.add("stopped");
+  const status = message.querySelector(".stream-status");
+  if (status) status.textContent = "已停止生成";
+}
+
+function setStreamingControls(isStreaming) {
+  $("send-button").disabled = isStreaming;
+  $("stop-button").classList.toggle("hidden", !isStreaming);
 }
 
 function appendStreamText(message, selector, delta) {
@@ -192,7 +206,7 @@ async function createConversation(title = "新对话") {
   return payload.conversation;
 }
 
-async function loadConversations() {
+async function loadConversations(refreshMessages = true) {
   if (!state.user) return;
   try {
     const payload = await api("/conversations");
@@ -208,9 +222,9 @@ async function loadConversations() {
       state.activeConversationId = state.conversations[0]?.conversation_id || null;
     }
     renderConversations();
-    if (state.activeConversationId) {
+    if (state.activeConversationId && refreshMessages) {
       await loadConversationMessages(state.activeConversationId);
-    } else {
+    } else if (!state.activeConversationId) {
       renderEmptyState("暂无对话", "创建新对话后开始提问。");
     }
   } catch (error) {
@@ -405,6 +419,10 @@ function bindEvents() {
     }
   });
 
+  $("stop-button").addEventListener("click", () => {
+    state.activeStreamController?.abort();
+  });
+
   $("chat-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const question = $("question").value.trim();
@@ -415,7 +433,7 @@ function bindEvents() {
     }
 
     state.loading = true;
-    $("send-button").disabled = true;
+    setStreamingControls(true);
     if ($("messages").querySelector(".empty-state")) $("messages").replaceChildren();
     addMessage("user", question);
     const streamMessage = createStreamingMessage();
@@ -424,21 +442,24 @@ function bindEvents() {
 
     try {
       const payload = await streamAnswer(question, streamMessage);
-      if (payload?.messages) {
-        renderMessages(payload.messages);
-      }
-      await loadConversations();
+      if (payload?.citations) renderStreamCitations(streamMessage, payload.citations || []);
+      await loadConversations(false);
     } catch (error) {
-      streamMessage.remove();
-      if (error.allowFallback) {
+      if (error.name === "AbortError") {
+        markStreamStopped(streamMessage);
+        setRuntimeStatus("Generation stopped", "warn");
+      } else if (error.allowFallback) {
+        streamMessage.remove();
         await sendWithFallback(question);
       } else {
+        streamMessage.remove();
         addMessage("agent", error.message);
+        setRuntimeStatus(error.message, "error");
       }
-      setRuntimeStatus(error.message, "error");
     } finally {
       state.loading = false;
-      $("send-button").disabled = false;
+      state.activeStreamController = null;
+      setStreamingControls(false);
     }
   });
 
@@ -492,14 +513,34 @@ function bindEvents() {
     }
     $("document-file").value = "";
   });
+
+  $("clear-knowledge").addEventListener("click", async () => {
+    const confirmed = window.confirm("确认清空知识库内所有向量知识？该操作会软删除当前可检索内容。");
+    if (!confirmed) return;
+    const button = $("clear-knowledge");
+    button.disabled = true;
+    try {
+      const payload = await api("/rag/knowledge", { method: "DELETE" });
+      $("document-status").replaceChildren(statusRow(`已清空 ${payload.deleted_count || 0} 条向量知识`));
+      setRuntimeStatus("Knowledge cleared", "ok");
+    } catch (error) {
+      setRuntimeStatus(error.message, "error");
+      $("document-status").prepend(statusRow(error.message));
+    } finally {
+      button.disabled = false;
+    }
+  });
 }
 
 async function streamAnswer(question, message) {
+  const controller = new AbortController();
+  state.activeStreamController = controller;
   const response = await fetch(`/conversations/${state.activeConversationId}/messages/stream`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question }),
+    signal: controller.signal,
   });
   if (!response.ok || !response.body) {
     const error = new Error(`请求失败：${response.status}`);

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 import time
 from typing import Any, Iterable
@@ -74,12 +73,12 @@ def ask_in_conversation(
             conversation_id,
             "assistant",
             answer.answer,
-            citations=[asdict(citation) for citation in answer.citations],
+        citations=_public_citations(answer.citations),
         )
         return {"answer": answer_payload, "messages": conversation_service.list_messages(user.user_id, conversation_id)}
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Conversation not found.") from exc
-    except (RuntimeError, StartupConfigurationError) as exc:
+    except (RuntimeError, ValueError, StartupConfigurationError) as exc:
         raise HTTPException(status_code=503, detail=f"对话处理失败：{exc}") from exc
 
 
@@ -96,7 +95,7 @@ def stream_conversation_answer(
             service = RagService()
             conversation_service.add_message(user.user_id, conversation_id, "user", payload.question)
             answer = service.ask(payload.question)
-            citations = [asdict(citation) for citation in answer.citations]
+            citations = _public_citations(answer.citations)
             reasoning = service.build_public_reasoning(payload.question, answer)
 
             yield from _yield_text("thought", reasoning)
@@ -143,3 +142,13 @@ def _chunk_text(text: str, size: int = 8) -> Iterable[str]:
 
 def _sse(event: str, payload: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _public_citations(citations) -> list[dict[str, object]]:
+    return [
+        {
+            "title": citation.title,
+            "heading_path": citation.heading_path,
+        }
+        for citation in citations
+    ]
