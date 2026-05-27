@@ -66,7 +66,7 @@ def ask_in_conversation(
     user = require_login(request)
     try:
         conversation_service.add_message(user.user_id, conversation_id, "user", payload.question)
-        answer = RagService().ask(payload.question)
+        answer = RagService().ask(payload.question, user_id=user.user_id, session_id=conversation_id)
         answer_payload = answer_to_dict(answer)
         conversation_service.add_message(
             user.user_id,
@@ -94,7 +94,7 @@ def stream_conversation_answer(
         try:
             service = RagService()
             conversation_service.add_message(user.user_id, conversation_id, "user", payload.question)
-            answer = service.ask(payload.question)
+            answer = service.ask(payload.question, user_id=user.user_id, session_id=conversation_id)
             citations = _public_citations(answer.citations)
             reasoning = service.build_public_reasoning(payload.question, answer)
 

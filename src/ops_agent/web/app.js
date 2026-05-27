@@ -600,7 +600,7 @@ function autosizeQuestion() {
 }
 
 async function bootstrap() {
-  applyTheme(localStorage.getItem("ops-agent-theme") || "dark");
+  applyTheme(localStorage.getItem("ops-agent-theme") || "light");
   applySidebarState();
   bindEvents();
   renderEmptyState();

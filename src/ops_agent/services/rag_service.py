@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import json
 from pathlib import Path
 import re
 
+from ops_agent.context import ContextManager
 from ops_agent.models import Citation, RagAnswer
 from ops_agent.services.document_service import (
     chunk_document,
@@ -17,6 +19,7 @@ from ops_agent.services.business_rule_service import compose_business_rule_answe
 from ops_agent.services.llm_client import DeepSeekChatClient, LlmMessage
 from ops_agent.services.rag_workflow import RagWorkflowState, EnterpriseRagWorkflow, build_answer_prompt, build_source_text
 from ops_agent.services.rerank_service import Reranker, create_reranker
+from ops_agent.services.structured_rule_rag import DecisionBuilder, EvidenceValidator, IntentClassifier, RuleMatcher
 from ops_agent.services.trace_service import TraceRecorder
 from ops_agent.services.vector_store import LocalVectorStore, PgVectorStore, create_vector_store
 
@@ -46,6 +49,11 @@ class RagService:
         self.llm = llm or DeepSeekChatClient()
         self.reranker = reranker or create_reranker()
         self.workflow = EnterpriseRagWorkflow(store=self.vector_store, reranker=self.reranker)
+        self.context_manager = ContextManager()
+        self.intent_classifier = IntentClassifier()
+        self.rule_matcher = RuleMatcher()
+        self.evidence_validator = EvidenceValidator()
+        self.decision_builder = DecisionBuilder()
 
     def ingest(self, path: Path) -> dict[str, object]:
         if path.suffix.lower() in {".doc", ".docx", ".xlsx", ".csv", ".pdf"}:
@@ -108,15 +116,28 @@ class RagService:
             "strategy_counts": _ingested_strategy_counts(result.chunks),
         }
 
-    def ask(self, question: str) -> RagAnswer:
+    def ask(self, question: str, user_id: str = "default_user", session_id: str = "default_session") -> RagAnswer:
         normalized_question = question.strip()
         with self.recorder.span("query.validate", {"question": _compact(normalized_question)}) as span:
             if not normalized_question:
                 raise ValueError("问题不能为空。")
             span.update({"characters": len(normalized_question)})
 
-        with self.recorder.span("rag.workflow", {"question": _compact(normalized_question)}) as span:
-            state = self.workflow.run(normalized_question)
+        with self.recorder.span("context.load", {"user_id": user_id, "session_id": session_id}) as span:
+            agent_context = self.context_manager.build_context(user_id, session_id, normalized_question)
+            effective_question = agent_context.resolved_message or normalized_question
+            span.update(
+                {
+                    "resolved_question": _compact(effective_question),
+                    "current_stage": agent_context.conversation_state.current_stage,
+                    "current_topic": agent_context.conversation_state.current_topic,
+                    "profile_loaded": agent_context.user_profile is not None,
+                    "long_term_items": len(agent_context.long_term_memory.items),
+                }
+            )
+
+        with self.recorder.span("rag.workflow", {"question": _compact(effective_question)}) as span:
+            state = self.workflow.run(effective_question)
             span.update(
                 {
                     "question_type": state.question_type,
@@ -131,6 +152,31 @@ class RagService:
                 }
             )
 
+        with self.recorder.span("context.rule_rag", {"question_type": state.question_type}) as span:
+            intent = self.intent_classifier.classify(state)
+            matched_rules = self.context_manager.policy.filter_rules(self.rule_matcher.match(state), intent)
+            evidence = self.evidence_validator.validate(state, matched_rules)
+            decision = self.decision_builder.build(state, matched_rules, evidence)
+            llm_context = self.context_manager.assemble_llm_context(
+                agent_context,
+                decision,
+                evidence,
+                intent=intent,
+            )
+            state.debug["agent_context"] = self.context_manager.snapshot(agent_context)
+            state.debug["matched_rules"] = [rule.__dict__ for rule in matched_rules]
+            state.debug["evidence"] = evidence.__dict__
+            state.debug["decision"] = decision.__dict__
+            state.debug["assembled_context"] = llm_context.to_dict()
+            span.update(
+                {
+                    "intent": intent,
+                    "matched_rules": len(matched_rules),
+                    "evidence_can_answer": evidence.can_answer,
+                    "decision": decision.direct_answer,
+                }
+            )
+
         if not state.should_answer:
             answer = RagAnswer(
                 trace_id=self.recorder.trace_id,
@@ -141,6 +187,13 @@ class RagService:
                 refused=True,
             )
             self._record_answer(answer)
+            self.context_manager.update_after_response(
+                user_id,
+                session_id,
+                normalized_question,
+                answer.answer,
+                {"intent": state.question_type, "decision": "refused", "sources": [], "refused": True},
+            )
             return answer
 
         with self.recorder.span("answer.compose", {"hit_count": len(state.final_hits)}) as span:
@@ -156,6 +209,19 @@ class RagService:
             refused=False,
         )
         self._record_answer(answer)
+        decision_payload = state.debug.get("decision", {})
+        self.context_manager.update_after_response(
+            user_id,
+            session_id,
+            normalized_question,
+            answer.answer,
+            {
+                "intent": state.question_type,
+                "decision": decision_payload.get("direct_answer", "") if isinstance(decision_payload, dict) else "",
+                "sources": [source.doc_name for source in state.sources],
+                "refused": False,
+            },
+        )
         return answer
 
     def _compose_answer(self, state: RagWorkflowState) -> str:
@@ -166,7 +232,7 @@ class RagService:
 
         messages = [
             LlmMessage(role="system", content=SYSTEM_PROMPT),
-            LlmMessage(role="user", content=build_answer_prompt(state)),
+            LlmMessage(role="user", content=_context_answer_prompt(state)),
         ]
         self.recorder.record_llm_prompt("llm.rag.prompt", [asdict(message) for message in messages])
         if self.llm.enabled:
@@ -649,6 +715,23 @@ def _sanitize_final_answer(answer: str, state: RagWorkflowState) -> str:
     if "引用来源" not in cleaned and "鏉ユ簮锛?" not in cleaned and "寮曠敤鏉ユ簮锛?" not in cleaned:
         cleaned = f"{cleaned}\n\n{build_source_text(state.sources)}"
     return cleaned
+
+
+def _context_answer_prompt(state: RagWorkflowState) -> str:
+    assembled = state.debug.get("assembled_context")
+    base_prompt = build_answer_prompt(state)
+    if not assembled:
+        return base_prompt
+    context_json = json.dumps(assembled, ensure_ascii=False, indent=2)
+    return (
+        "你只能基于 assembled_context 和下方结构化证据回答。\n"
+        "如果 decision.direct_answer 存在，必须优先使用它，不得自行改变结论。\n"
+        "用户画像、长期记忆和短期记忆只能用于解释深度和上下文连续性，不能替代企业知识库证据。\n"
+        "如果 evidence.can_answer=false，必须说明缺少什么依据。\n"
+        "不得输出内部字段：chunk_id、vector_score、keyword_score、hybrid_score、rerank_score、UUID、Sheet3 Sheet3、业务分类、DO-1分、字段3。\n\n"
+        f"assembled_context:\n```json\n{context_json}\n```\n\n"
+        f"{base_prompt}"
+    )
 
 
 def _citation_from_state_hit(hit) -> Citation:

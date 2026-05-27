@@ -93,6 +93,21 @@ class EnterpriseRagWorkflow:
         text = state.question
         lower = text.lower()
 
+        if _contains(text, "资产", "房产", "车产", "存款", "股票", "基金", "资产摸底"):
+            state.question_type = "asset_inquiry"
+            state.risk_level = "high"
+        elif _contains(text, "法院", "冻结", "诉讼", "律所", "移交", "起诉", "法务", "法律责任", "强制执行"):
+            state.question_type = "legal_compliance"
+            state.risk_level = "high"
+        elif _contains(text, "联系人", "紧急联系人", "预留联系人", "家人", "亲属"):
+            state.question_type = "contact_boundary"
+            state.risk_level = "medium"
+        elif _contains(text, "核资", "还款能力", "资金来源", "收入", "工资", "工作单位", "发放时间", "收入来源"):
+            state.question_type = "funding_check"
+            state.risk_level = "medium"
+        elif _contains(text, "沟通", "话术", "技巧") or _stage_from_question(text) or stage_bucket(text):
+            state.question_type = "stage_script" if (_stage_from_question(text) or stage_bucket(text)) else "communication_script"
+
         if _contains(text, "多次跳票", "跳票", "认可鼓励"):
             state.question_type = "recognition_encouragement"
         elif _contains(text, "文明用语", "有效安抚", "安抚"):
