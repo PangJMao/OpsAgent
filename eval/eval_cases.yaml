@@ -1,0 +1,473 @@
+api_url: http://localhost:8000/rag/ask
+headers:
+  x-user-id: eval
+  x-role: admin
+
+cases:
+  - id: asset_d4_d9
+    question: D4-D9 阶段能不能询问客户名下是否有房产、车产、存款、股票、基金？
+    expected_intent: asset_inquiry
+    must_contain:
+      - 不建议
+      - D4-D6
+      - D7-D9
+      - D10
+      - 资产摸底
+    expected_sources:
+      - 核资话术分层建议
+    must_not_contain:
+      - 自报家门
+      - 核身
+      - chunk_id
+      - score
+      - Sheet3 Sheet3
+    notes: D4-D9 资产摸底边界，防止混入开场/核身碎片。
+
+  - id: abuse_effective_comfort
+    question: 客户骂人时，说“请你文明用语”算有效安抚吗？
+    expected_intent: effective_comfort
+    must_contain:
+      - 先安抚
+      - 文明用语
+      - 不属于
+      - 有效安抚
+    expected_sources:
+      - 话术-沟通话术四大框架
+    must_not_contain:
+      - 资产摸底
+      - 法务话术
+      - chunk_id
+      - score
+    notes: 用户原始 case 2 调整为更贴近素材中的“文明用语不属于安抚”。
+
+  - id: stage_d4_d6
+    question: D4-D6 阶段客户应该怎么沟通？
+    expected_intent: stage_script
+    must_contain:
+      - 早期阶段
+      - 中性温和
+      - 信息核实
+      - 不建议
+      - 法律风险
+    expected_sources:
+      - 核资话术分层建议
+
+  - id: contact_stop_calling
+    question: 联系人明确表示不想被联系，后续还能继续拨打吗？
+    expected_intent: contact_boundary
+    must_contain:
+      - 不可
+      - 礼貌安抚
+      - 黑名单
+      - 后续
+    expected_sources:
+      - 话术-沟通话术四大框架
+    notes: 当前规则可能使用“不应/不要继续高频拨打”，若失败说明需要补联系人停联口径。
+
+  - id: legal_freeze
+    question: 能不能告诉客户法院会冻结他的银行卡、支付宝、微信？
+    expected_intent: legal_compliance
+    must_contain:
+      - 高风险
+      - 法务
+      - 审核
+      - 案件状态
+    expected_sources:
+      - 法务话术
+    notes: 验证法务表达不能确定化。
+
+  - id: reduction_interest
+    question: 客户问能不能减免利息，应该怎么答？
+    expected_intent: reduction_request
+    must_contain:
+      - 未找到
+      - 明确
+      - 政策
+      - 升级确认
+    must_not_contain:
+      - 可以减免
+      - 一定可以
+    notes: 当前系统如果回答“不能现场承诺”但缺“未找到明确政策”，需要继续补证据不足口径。
+
+  - id: communication_skills
+    question: 与客户沟通时有哪些技巧？
+    expected_intent: communication_script
+    must_contain:
+      - 表明身份
+      - 核实
+      - 语气
+      - 安抚
+      - 承诺
+    must_not_contain:
+      - 业务分类
+      - DO-1分
+      - 字段3
+      - Sheet3 Sheet3
+      - chunk_id
+      - score
+
+  - id: opening_closing
+    question: 与客户沟通时，开场和结束需要注意什么？
+    expected_intent: call_protocol
+    must_contain:
+      - 表明身份
+      - 结束
+      - 再见
+    must_not_contain:
+      - 移交律所
+      - 诉讼代理
+
+  - id: first_contact_actions
+    question: 催收员第一次联系客户时，应该先做哪些动作？
+    expected_intent: communication_script
+    must_contain:
+      - 身份
+      - 来意
+      - 核实
+
+  - id: non_first_call_intro
+    question: 当天不是首通电话，还需要再次自报家门吗？
+    expected_intent: call_protocol
+    must_contain:
+      - 需要
+      - 自报家门
+      - 非首通
+    must_not_contain:
+      - 移交律所
+      - 强制执行
+
+  - id: customer_dissatisfied
+    question: 客户情绪不满时，催收员应该怎么处理？
+    expected_intent: communication_script
+    must_contain:
+      - 情绪
+      - 安抚
+      - 诉求
+
+  - id: repeated_broken_promises
+    question: 客户多次跳票，还需要认可鼓励吗？
+    expected_intent: recognition_encouragement
+    must_contain:
+      - 仍然需要
+      - 认可
+      - 跳票
+      - 处理安排
+
+  - id: vague_repayment_time
+    question: 与客户约定还款时间时，可以说“过两天还”吗？
+    expected_intent: repayment_appointment
+    must_contain:
+      - 不能
+      - 具体日期
+      - 过两天
+
+  - id: inconvenient_call_close
+    question: 客户说现在不方便接电话，应该怎么收口？
+    must_contain:
+      - 记录
+      - 后续
+      - 时间
+
+  - id: stage_d4_legal_risk
+    question: D4-D6 阶段可以提“法律风险”“移交流程”吗？
+    expected_intent: legal_compliance
+    must_contain:
+      - 不建议
+      - D4-D6
+      - 法律风险
+
+  - id: stage_d7_d9_intensity
+    question: D7-D9 阶段相比 D4-D6，沟通强度可以怎么调整？
+    expected_intent: stage_script
+    must_contain:
+      - D7-D9
+      - 适当加重
+      - 合规边界
+
+  - id: stage_d10_points
+    question: D10-D15 阶段可以使用哪些更强的沟通点？
+    expected_intent: stage_script
+    must_contain:
+      - D10-D15
+      - 处理安排
+      - 不实承诺
+
+  - id: stage_d10_final_transfer
+    question: D10-D15 阶段能不能直接说“下午 X 点做最后移交审核”？
+    expected_intent: legal_compliance
+    must_contain:
+      - 不能
+      - 移交
+      - 审核
+
+  - id: d12_funding_capacity
+    question: D12 阶段，多次沟通未还款，可以怎么确认客户还款能力？
+    expected_intent: funding_check
+    must_contain:
+      - D10-D15
+      - 还款能力
+      - 收入
+      - 资金
+
+  - id: d5_first_contact_dissatisfied
+    question: 客户 D5 首次接通并有点不满，应该怎么沟通？
+    expected_intent: stage_script
+    must_contain:
+      - D4-D6
+      - 首通
+      - 不满
+      - 温和
+
+  - id: d13_legal_consequence
+    question: 客户 D13 多轮沟通无果，是否可以提示违约后果？
+    expected_intent: stage_script
+    must_contain:
+      - D10-D15
+      - 违约
+      - 边界
+
+  - id: funding_work_unit
+    question: 可以询问客户现在是否还在原单位上班吗？
+    expected_intent: funding_check
+    must_contain:
+      - 可以
+      - 工作
+      - 收入
+
+  - id: funding_salary_day
+    question: 可以询问客户工资发放时间吗？
+    expected_intent: funding_check
+    must_contain:
+      - 可以
+      - 工资
+      - 发放
+
+  - id: funding_other_income
+    question: 可以询问客户近期是否有其他收入来源吗？
+    expected_intent: funding_check
+    must_contain:
+      - 可以
+      - 收入来源
+      - 还款能力
+
+  - id: funding_source
+    question: 可以问客户还款资金来源是什么吗？
+    expected_intent: funding_check
+    must_contain:
+      - 可以
+      - 资金来源
+      - 还款
+
+  - id: funding_refuse_answer
+    question: 客户拒绝回答还款能力问题，催收员应该继续追问吗？
+    expected_intent: funding_followup
+    must_contain:
+      - 拒绝
+      - 不应
+      - 追问
+
+  - id: partial_repayment
+    question: 客户说只能先还一部分，应该怎么确认后续安排？
+    expected_intent: partial_repayment
+    must_contain:
+      - 部分
+      - 剩余
+      - 后续
+
+  - id: closed_then_open_question
+    question: 核资时，封闭式问题问完后还需要开放式追问吗？
+    expected_intent: funding_followup
+    must_contain:
+      - 需要
+      - 开放式
+      - 有效信息
+
+  - id: hardship_repayment_plan
+    question: 客户有现实困难但愿意沟通，应该如何推进还款计划？
+    expected_intent: funding_followup
+    must_contain:
+      - 困难
+      - 还款计划
+      - 可执行
+
+  - id: asset_d4_d6
+    question: D4-D6 阶段能不能问客户名下有没有房产、车产、存款、股票、基金？
+    expected_intent: asset_inquiry
+    must_contain:
+      - 不建议
+      - D4-D6
+      - 资产
+
+  - id: asset_d7_d9
+    question: D7-D9 阶段能不能问客户资产情况？
+    expected_intent: asset_inquiry
+    must_contain:
+      - 不建议
+      - D7-D9
+      - 资产
+
+  - id: asset_d10_d15
+    question: D10-D15 阶段能不能了解客户是否有房产、车产、存款、股票、基金？
+    expected_intent: asset_inquiry
+    must_contain:
+      - D10-D15
+      - 谨慎
+      - 还款能力
+
+  - id: asset_malicious_default
+    question: 问客户资产情况时，能不能说“有资产还不还就是恶意拖欠”？
+    expected_intent: asset_inquiry
+    must_contain:
+      - 不要
+      - 资产
+      - 恶意拖欠
+
+  - id: asset_freeze_binding
+    question: 能不能把客户资产情况和法院冻结绑定起来说？
+    expected_intent: legal_compliance
+    must_contain:
+      - 不能
+      - 资产
+      - 冻结
+
+  - id: contact_asset_income
+    question: 联系人能不能代替客户说明资产、收入或还款能力？
+    expected_intent: contact_boundary
+    must_contain:
+      - 不能
+      - 联系人
+      - 资产
+
+  - id: contact_overdue_amount
+    question: 与预留联系人沟通时，可以透露客户逾期金额吗？
+    expected_intent: contact_boundary
+    must_contain:
+      - 不得
+      - 逾期金额
+      - 敏感信息
+
+  - id: contact_overdue_days
+    question: 与联系人沟通时，可以提客户逾期天数吗？
+    expected_intent: contact_boundary
+    must_contain:
+      - 不得
+      - 逾期天数
+      - 最小披露
+
+  - id: contact_new_phone
+    question: 联系人提供客户新的手机号，可以直接拨打核实吗？
+    expected_intent: contact_boundary
+    must_contain:
+      - 不要
+      - 授权
+      - 核验
+
+  - id: contact_denies_knowing
+    question: 联系人说不认识客户，催收员应该怎么核实？
+    expected_intent: third_party_identity_check
+    must_contain:
+      - 关系
+      - 核实
+      - 不披露
+
+  - id: third_party_no_name
+    question: 三方核身时，对方无法报姓名，可以怎么确认关系？
+    expected_intent: third_party_identity_check
+    must_contain:
+      - 关系
+      - 核实
+      - 三方
+
+  - id: contact_ask_new_number
+    question: 当日未联系上本人，可以向联系人询问新号码吗？
+    expected_intent: contact_boundary
+    must_contain:
+      - 新号码
+      - 授权
+      - 核验
+
+  - id: contact_permanent_stop
+    question: 联系人要求不要再打电话，催收员可以直接承诺永久停止联系吗？
+    expected_intent: contact_boundary
+    must_contain:
+      - 不要
+      - 承诺
+      - 停止联系
+
+  - id: legal_all_liability
+    question: 能不能说“你后续一切法律责任都要自己承担”？
+    expected_intent: legal_compliance
+    must_contain:
+      - 法律责任
+      - 不要
+      - 确定性
+
+  - id: legal_d10_consequence
+    question: D10-D15 阶段可以提示法律后果吗？边界是什么？
+    expected_intent: stage_script
+    must_contain:
+      - D10-D15
+      - 法律后果
+      - 边界
+
+  - id: false_commitment
+    question: 什么是不实承诺？催收沟通里有哪些典型风险？
+    expected_intent: false_commitment
+    must_contain:
+      - 不实承诺
+      - 超出权限
+      - 风险
+
+  - id: zero_tolerance
+    question: 什么是“零容忍”项？系统应该怎么解释？
+    expected_intent: zero_tolerance
+    must_contain:
+      - 零容忍
+      - 严重违规
+      - 信息泄露
+    must_not_contain:
+      - 业务分类
+      - column_
+      - 字段3
+
+  - id: third_party_number_check
+    question: “核对三方号码、何时办理、何地办理、是否停机”这些内容应该在什么场景使用？
+    expected_intent: third_party_identity_check
+    must_contain:
+      - 三方
+      - 不认识
+      - 核验
+    must_not_contain:
+      - 法务诉讼
+      - 移交流程
+
+  - id: non_first_call_meaning
+    question: “当天非首通电话需要再次自报家门”是什么意思？
+    expected_intent: call_protocol
+    must_contain:
+      - 非首通
+      - 再次自报家门
+      - 机构身份
+
+  - id: dirty_column_check
+    question: 客户问沟通技巧时，系统会不会把表格里的 column 或评分字段直接输出？
+    expected_intent: communication_script
+    must_contain:
+      - 不应
+      - 表格
+      - 字段
+    must_not_contain:
+      - column_
+      - DO-1分
+      - Sheet3 Sheet3
+
+  - id: dirty_reference_script_check
+    question: D10-D15 阶段问题中，系统会不会错误输出“张三先生/女士”“李四家人朋友”等原始参考话术？
+    expected_intent: contact_boundary
+    must_contain:
+      - 不应
+      - 原始参考话术
+      - D10-D15
+    must_not_contain:
+      - 张三
+      - 李四

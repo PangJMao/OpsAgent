@@ -451,9 +451,11 @@ def test_rule_layer_combines_specific_and_general_rules() -> None:
 
     answer = service.ask("客户 D5 阶段，第一次接通电话，情绪有点不满，应该怎么沟通？").answer
 
-    assert "命中规则" in answer
-    assert "stage-d4-first-contact-dissatisfied" in answer
-    assert "stage-d4-general" in answer
+    assert "适用规则" in answer
+    assert "D4-D6 阶段" in answer
+    assert "阶段沟通" in answer
+    assert "stage-d4-first-contact-dissatisfied" not in answer
+    assert "stage-d4-general" not in answer
 
 
 def test_d5_first_contact_with_mild_dissatisfaction_uses_scene_frame() -> None:

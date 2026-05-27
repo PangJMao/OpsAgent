@@ -149,7 +149,7 @@ def _render_rule_answer(state: RagWorkflowState, frame: BusinessFrame, rules: li
     action_steps = "\n".join(
         f"{index}. {item}" for index, item in enumerate(_build_action_steps(frame), start=1)
     )
-    matched_rules = "、".join(rule.rule_id for rule in rules)
+    rule_scope = _rule_scope_text(frame, rules)
 
     scene_lines = [
         f"1. 阶段：{frame.stage or '未明确'}。",
@@ -168,7 +168,7 @@ def _render_rule_answer(state: RagWorkflowState, frame: BusinessFrame, rules: li
     return (
         f"结论\n{primary.decision}。\n\n"
         f"场景识别\n{chr(10).join(scene_lines)}\n\n"
-        f"命中规则\n{matched_rules}\n\n"
+        f"适用规则\n{rule_scope}\n\n"
         f"判断依据\n{rationale}\n\n"
         f"{_advice_title(frame.action)}\n{allowed}\n\n"
         f"操作拆解\n{action_steps}\n\n"
@@ -195,6 +195,27 @@ def _dedupe_text(items: list[str]) -> list[str]:
         if item and item not in result:
             result.append(item)
     return result
+
+
+def _rule_scope_text(frame: BusinessFrame, rules: list[BusinessRule]) -> str:
+    scopes: list[str] = []
+    if frame.stage:
+        scopes.append(f"{frame.stage} 阶段")
+    if frame.action:
+        scopes.append(frame.action)
+    if frame.subject:
+        scopes.append(f"{frame.subject}沟通")
+    if frame.contact_round:
+        scopes.append(frame.contact_round)
+    if frame.customer_emotion:
+        scopes.append(frame.customer_emotion)
+    if frame.risk_tags:
+        scopes.append("、".join(frame.risk_tags))
+    if not scopes:
+        scopes.append("通用业务边界")
+    if len(rules) > 1:
+        scopes.append("补充合规边界")
+    return "、".join(scopes)
 
 
 def _advice_title(action: str) -> str:
@@ -277,4 +298,3 @@ def _matches_dimension(value: str, candidates: tuple[str, ...]) -> bool:
 
 def _requires_specific_value(candidates: tuple[str, ...]) -> bool:
     return bool(candidates) and "任意" not in candidates and "全阶段" not in candidates
-
